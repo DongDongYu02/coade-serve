@@ -36,7 +36,7 @@ spring:
           min-idle: 0
   servlet:
     multipart:
-      max-file-size: 100MB
+      max-file-size: 101MB
       max-request-size: 100MB
 
 mybatis-plus:
