@@ -31,8 +31,9 @@ public class UploadUtil {
         FileUtil.mkdir(dir);
         // 重构文件名，用md5
         String fileName = MD5.create().digestHex16(System.currentTimeMillis() + RandomUtil.randomString(6));
-        String mime = FileUtil.extName(file.getOriginalFilename());
-        String path = dir + "/" + fileName + "." + mime;
+        String extName = FileUtil.extName(file.getOriginalFilename());
+        String mime = FileUtil.getMimeType(file.getOriginalFilename());
+        String path = dir + "/" + fileName + "." + extName;
         try {
             file.transferTo(FileUtil.newFile(path));
         } catch (IOException e) {
@@ -43,8 +44,8 @@ public class UploadUtil {
         uploadInfo.setOriginName(getFileName(file.getOriginalFilename()));
         uploadInfo.setMime(mime);
         uploadInfo.setAbsolutePath(path);
-        uploadInfo.setRelativePath(today + "/" + fileName + "." + mime);
-
+        uploadInfo.setRelativePath(today + "/" + fileName + "." + extName);
+        uploadInfo.setSize(file.getSize());
         return uploadInfo;
     }
 
@@ -71,6 +72,7 @@ public class UploadUtil {
         private String relativePath;
         private String absolutePath;
         private String mime;
+        private long size;
     }
 
 }

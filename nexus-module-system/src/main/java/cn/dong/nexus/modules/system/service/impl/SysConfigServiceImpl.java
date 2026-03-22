@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,7 +63,7 @@ public class SysConfigServiceImpl extends ServiceImpl<SysConfigMapper, SysConfig
         List<SysConfig> sysConfigs = BeanUtil.copyToList(configs, SysConfig.class);
         sysConfigs.forEach(item -> {
             item.setUpdateTime(LocalDateTime.now());
-            item.setUpdateBy(SpringUtil.getBean(IAuthContext.class).getLoginUser().getId());
+            item.setUpdateBy(SpringUtil.getBean(IAuthContext.class).getLoginUserOrThrow().getId());
         });
         this.updateBatchById(sysConfigs);
     }

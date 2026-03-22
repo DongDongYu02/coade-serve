@@ -24,7 +24,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -61,7 +60,7 @@ public class SysAuthServiceImpl implements ISysAuthService {
 
     @Override
     public UserPermissionVO getLoginUserPermissions() {
-        LoginUser loginUser = authContext.getLoginUser();
+        LoginUser loginUser = authContext.getLoginUserOrThrow();
         if (SysUserIdentity.SUPER_ADMIN.getCode().equals(loginUser.getIdentity())) {
             List<SysPermission> list = sysPermissionService.lambdaQuery()
                     .orderByAsc(SysPermission::getSort)
@@ -121,7 +120,7 @@ public class SysAuthServiceImpl implements ISysAuthService {
 
     @Override
     public void changePassword(ChangePasswordDTO dto) {
-        String userId = authContext.getLoginUser().getId();
+        String userId = authContext.getLoginUserOrThrow().getId();
         SysUser user = userService.lambdaQuery().select(SysUser::getPassword)
                 .eq(BaseEntity::getId, userId).one();
         if (Objects.isNull(user)) {

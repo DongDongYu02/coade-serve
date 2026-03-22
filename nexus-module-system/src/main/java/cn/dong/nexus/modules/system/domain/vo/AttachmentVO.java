@@ -7,6 +7,9 @@ import lombok.Data;
 @Schema(description = "附件 VO")
 public class AttachmentVO {
 
+    @Schema(description = "附件 ID")
+    private String id;
+
     @Schema(description = "文件名称")
     private String name;
 

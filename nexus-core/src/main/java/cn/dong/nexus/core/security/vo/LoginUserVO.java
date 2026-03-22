@@ -4,6 +4,8 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
+import java.util.Map;
+
 @Data
 @Accessors(chain = true)
 public class LoginUserVO {
@@ -37,6 +39,9 @@ public class LoginUserVO {
 
         @Schema(description = "身份")
         private Integer identity;
+
+        @Schema(description = "拓展信息")
+        private Map<String, Object> extInfo;
 
     }
 }

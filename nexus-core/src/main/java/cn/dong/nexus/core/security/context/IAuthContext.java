@@ -11,6 +11,10 @@ import java.util.Set;
  */
 public interface IAuthContext {
 
+    LoginUser getLoginUserOrThrow();
+
+    void checkLogin();
+
     LoginUser getLoginUser();
 
     void checkSession();

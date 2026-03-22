@@ -2,6 +2,7 @@ package cn.dong.nexus.modules.system.controller;
 
 import cn.dong.nexus.core.api.Result;
 import cn.dong.nexus.modules.system.domain.vo.AttachmentVO;
+import cn.dong.nexus.modules.system.service.ISysAttachmentService;
 import cn.dong.nexus.modules.system.util.UploadUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -18,8 +19,7 @@ import org.springframework.web.multipart.MultipartFile;
 @Tag(name = "附件管理")
 @RequiredArgsConstructor
 public class FileController {
-    @Value("${nexus.file-access-url}")
-    private String fileAccessUrl;
+    private final ISysAttachmentService attachmentService;
 
 
     @PostMapping("/upload")
@@ -28,12 +28,7 @@ public class FileController {
         if (file.isEmpty()) {
             return Result.error("未获取到上传的文件！");
         }
-        UploadUtil.UploadInfo uploadInfo = UploadUtil.saveMultipartFile(file);
-        AttachmentVO vo = new AttachmentVO();
-        vo.setMime(uploadInfo.getMime());
-        vo.setName(uploadInfo.getOriginName());
-        vo.setPath(uploadInfo.getRelativePath());
-        vo.setUrl(fileAccessUrl + uploadInfo.getRelativePath());
+        AttachmentVO vo = attachmentService.create(file);
         return Result.success(vo);
     }
 

@@ -231,6 +231,11 @@ public class ResMappingHandler {
     public List<Field> getSourceValField(String[] values, Class<?> sourceClass) {
         List<Field> fields = new ArrayList<>(values.length);
         if (ArrayUtil.isEmpty(values)) {
+            Field name = ReflectUtil.getField(sourceClass, "name");
+            if (Objects.isNull(name)) {
+                log.error("field [name] is not in class [{}]", sourceClass.getName());
+                return Collections.emptyList();
+            }
             fields.add(ReflectUtil.getField(sourceClass, "name"));
             return fields;
         }
@@ -260,7 +265,7 @@ public class ResMappingHandler {
         List<Field> fields = new ArrayList<>(fieldNames.length);
         if (ArrayUtil.isEmpty(fieldNames)) {
             String fieldName = StrUtil.removeSuffix(keyField.getName(), DEFAULT_TARGET_KEY_SUFFIX)
-                    + DEFAULT_TARGET_VAL_SUFFIX;
+                               + DEFAULT_TARGET_VAL_SUFFIX;
             fields.add(ReflectUtil.getField(clazz, fieldName));
             return fields;
         }

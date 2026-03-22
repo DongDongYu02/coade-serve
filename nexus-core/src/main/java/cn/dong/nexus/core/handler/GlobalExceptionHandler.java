@@ -7,11 +7,15 @@ import cn.hutool.core.text.StrJoiner;
 import cn.hutool.core.util.StrUtil;
 import io.swagger.v3.oas.annotations.Hidden;
 import jakarta.annotation.PostConstruct;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
+import org.springframework.http.HttpStatus;
 import org.springframework.validation.BindException;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -49,6 +53,24 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public Result<Void> handleException(IllegalArgumentException e) {
         return Result.error(e.getMessage());
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    @ResponseStatus(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+    public String handleHttpMediaTypeNotSupportedException(
+            HttpMediaTypeNotSupportedException e,
+            HttpServletRequest request
+    ) {
+        log.error("不支持的Content-Type异常, uri={}, method={}, contentType={}, remoteAddr={}, userAgent={}, msg={}",
+                request.getRequestURI(),
+                request.getMethod(),
+                request.getContentType(),
+                request.getRemoteAddr(),
+                request.getHeader("User-Agent"),
+                e.getMessage(),
+                e);
+
+        return "Content-Type not supported";
     }
 
 

@@ -4,6 +4,8 @@ import cn.dong.nexus.core.security.enums.SysUserIdentity;
 import lombok.Data;
 import lombok.experimental.Accessors;
 
+import java.util.Map;
+
 @Data
 @Accessors(chain = true)
 public class LoginUser {
@@ -23,6 +25,8 @@ public class LoginUser {
     private Integer identity;
 
     private Integer status;
+
+    private Map<String, Object> extInfo;
 
 
     public boolean isSuperAdmin() {

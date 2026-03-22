@@ -2,8 +2,14 @@ server:
   port: 9981
 nexus:
   file-upload-path: D:/upload/
-  file-access-url: http://localhost:8380/
+  file-access-url: http://oa.zjkede.com:5100/file/
   aes-key: 1RR1JeyfUWvy1gmZFoO439Tk43dPdI92C1hZ6Tr2wFo=
+coade:
+  cmt:
+    we-com-corp-id: wwf1cc9fcdfb5879a6
+    we-com-secret: fHE46_y9VGU2ZZ8Bo1VD1ElKnQi5X-Hzo2cly4Z6C-c
+  ekp:
+    server-url: http://10.0.10.30:9081
 spring:
   application:
     name: nexus-admin
@@ -22,6 +28,11 @@ spring:
           username: root
           password: root
           driver-class-name: com.mysql.cj.jdbc.Driver
+        ekp-sqlserver:
+          url: jdbc:sqlserver://10.0.10.210:1433;DatabaseName=ekp;encrypt=false;trustServerCertificate=true;useSSL=false
+          username: sa
+          password: win*Coade#..
+          driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
   data:
     redis:
       host: localhost
@@ -47,6 +58,7 @@ mybatis-plus:
   global-config:
     db-config:
       id-type: ASSIGN_ID
+    enable-sql-runner: true
 
 
 springdoc:
@@ -56,6 +68,9 @@ springdoc:
   api-docs:
     path: /v3/api-docs
   group-configs:
+    - group: 'COADE-CMT'
+      paths-to-match: '/**'
+      packages-to-scan: cn.dong.coade.modules.cmt
     - group: 'NEXUS-BOOT'
       paths-to-match: '/**'
       packages-to-scan: cn.dong.nexus.controller
@@ -66,7 +81,6 @@ springdoc:
       paths-to-match: '/**'
       packages-to-scan: cn.dong.nexus.modules.system
 
-
 sa-token:
   token-name: Authorization
   timeout: 86400
@@ -76,3 +90,14 @@ sa-token:
   is-log: true
   token-prefix: Bearer
   is-read-cookie: false
+
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: sk-77618696a39c47d28cda80b4341b41e4
+      model-name: qwen3.5-flash
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      log-requests: true
+      log-responses: true
+      timeout: 50000000
+      max-retries: 0

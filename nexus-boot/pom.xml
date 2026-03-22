@@ -37,6 +37,11 @@
             <artifactId>nexus-module-system</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>cn.dong.nexus</groupId>
+            <artifactId>coade-module-cmt</artifactId>
+            <version>${project.version}</version>
+        </dependency>
     </dependencies>
 
     <build>

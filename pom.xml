@@ -26,6 +26,7 @@
         <hutool.version>5.8.43</hutool.version>
         <swagger-annotations.version>2.2.41</swagger-annotations.version>
         <caffeine.version>3.2.3</caffeine.version>
+        <langchain4j-open-ai.version>1.12.1-beta21</langchain4j-open-ai.version>
     </properties>
 
     <modules>
@@ -36,6 +37,7 @@
         <module>nexus-boot</module>
         <module>nexus-security</module>
         <module>nexus-module-system</module>
+        <module>coade-module-cmt</module>
     </modules>
 
     <dependencyManagement>
@@ -96,6 +98,12 @@
                 <artifactId>caffeine</artifactId>
                 <scope>compile</scope>
                 <version>${caffeine.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-open-ai-spring-boot-starter</artifactId>
+                <version>${langchain4j-open-ai.version}</version>
             </dependency>
 
 

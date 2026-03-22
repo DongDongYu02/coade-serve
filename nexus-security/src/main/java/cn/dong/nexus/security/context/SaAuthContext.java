@@ -19,7 +19,7 @@ public class SaAuthContext implements IAuthContext {
     private static final String USER_INFO_KEY = "userInfo";
 
     @Override
-    public LoginUser getLoginUser() {
+    public LoginUser getLoginUserOrThrow() {
         SaSession session = StpUtil.getSession();
         if (Objects.nonNull(session)) {
             Object loginUser = session.get(USER_INFO_KEY);
@@ -31,11 +31,33 @@ public class SaAuthContext implements IAuthContext {
     }
 
     @Override
+    public LoginUser getLoginUser() {
+        try {
+            SaSession session = StpUtil.getSession();
+            if (Objects.isNull(session)) {
+                return null;
+            }
+            Object loginUser = session.get(USER_INFO_KEY);
+            if (Objects.isNull(loginUser)) {
+                return null;
+            }
+            return (LoginUser) loginUser;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    @Override
     public void checkSession() {
         SaSession session = StpUtil.getSession(false);
-        if(Objects.isNull(session)){
+        if (Objects.isNull(session)) {
             throw new BizException(ApiMessage.UNAUTHORIZED);
         }
+    }
+
+    @Override
+    public void checkLogin() {
+        StpUtil.checkLogin();
     }
 
     @Override

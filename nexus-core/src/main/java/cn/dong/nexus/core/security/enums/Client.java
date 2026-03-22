@@ -12,7 +12,11 @@ public enum Client {
     /**
      * 移动端
      */
-    APP("app");
+    APP("app"),
+    /**
+     * CMT (企业微信)
+     */
+    CMT("cmt");
 
     private final String code;
 

@@ -3,7 +3,6 @@ package cn.dong.nexus.modules.system.service.impl;
 import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.base.BaseEntity;
 import cn.dong.nexus.core.exception.BizException;
-import cn.dong.nexus.core.resmapping.ResMappingUtil;
 import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.dong.nexus.core.util.PageUtil;
 import cn.dong.nexus.modules.system.domain.dto.SysDataDictDTO;
@@ -87,7 +86,7 @@ public class SysDataDictServiceImpl extends ServiceImpl<SysDataDictMapper, SysDa
         dataDictItemService.updateById(dto.toEntity());
         this.lambdaUpdate().eq(BaseEntity::getId, dto.getDataDictId())
                 .set(BaseEntity::getUpdateTime, new Date())
-                .set(BaseEntity::getUpdateBy, SpringUtil.getBean(IAuthContext.class).getLoginUser().getId())
+                .set(BaseEntity::getUpdateBy, SpringUtil.getBean(IAuthContext.class).getLoginUserOrThrow().getId())
                 .update();
     }
 
