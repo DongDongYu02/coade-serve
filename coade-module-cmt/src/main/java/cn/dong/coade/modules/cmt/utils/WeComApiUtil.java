@@ -68,6 +68,19 @@ public class WeComApiUtil {
         return dto;
     }
 
+
+    public static String getUsername(String userId) {
+        String accessToken = getAccessToken();
+        String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/user/get?access_token={}&userid={}", accessToken, userId);
+        String resp = HttpUtil.get(url);
+        JSONObject respJson = JSONUtil.parseObj(resp);
+        if (respJson.getInt("errcode") != 0) {
+            log.error("获取企微Username失败：{}", respJson.getStr("errmsg"));
+            throw new BizException("企微免登授权失败，请稍后重试！");
+        }
+        return respJson.getStr("name");
+    }
+
     public static String getUserTicket(String accessToken, String code) {
         String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/auth/getuserinfo?access_token={}&code={}", accessToken, code);
         String resp = HttpUtil.post(url, Map.of());

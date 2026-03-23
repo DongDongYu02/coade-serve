@@ -105,16 +105,15 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
 
         LocalDate now = LocalDate.now();
-//        LocalDate now = LocalDate.of(2026,3,2);
         LocalDateTime todayBegin = LocalDateTimeUtil.beginOfDay(now);
         LocalDateTime todayEnd = LocalDateTimeUtil.endOfDay(now);
 
         List<UserAttendRecordVO> userAttendToday = WeComApiUtil.getUserAttend(weComId, todayBegin, todayEnd);
-//        List<UserAttendRecordVO> userAttendToday = List.of(
-//                new UserAttendRecordVO().setCheckinTime("2026-03-09 08:00"),
-//                new UserAttendRecordVO().setCheckinTime("2026-03-09 11:30"),
-//                new UserAttendRecordVO().setCheckinTime("2026-03-09 11:31")
-//                );
+        // 未关联蓝凌的用户
+        if (GlobalConstants.UserIdentity.SPECIAL.equals(loginUser.getIdentity())) {
+            userAttendToday.forEach(item -> item.setStatus("正常"));
+            return new UserAttendInfoVO("暂无考勤规则", userAttendToday, new UserLeaveAttendVO());
+        }
 
         // 查询用户今天的补卡记录
         List<CmtAttendReissue> attendReissues = DynamicDataSourceUtil.switchTo(GlobalConstants.DataSource.LOCAL_MYSQL,
@@ -146,7 +145,8 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         EkpAttendRuleBO rule = ATTEND_RULE_MAP.get(ruleGroupName);
 
         if (rule == null) {
-            throw new BizException("用户考勤规则异常，未找到对应的考勤时间段，请联系管理员检查考勤组配置");
+            userAttendToday.forEach(item -> item.setStatus("正常"));
+            return new UserAttendInfoVO("无需打卡", userAttendToday, new UserLeaveAttendVO());
         }
         String ruleInfo = this.buildRuleInfoText(rule);
 

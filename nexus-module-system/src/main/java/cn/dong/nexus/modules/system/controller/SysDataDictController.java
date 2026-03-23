@@ -6,6 +6,7 @@ import cn.dong.nexus.core.valid.ValidGroup;
 import cn.dong.nexus.modules.system.domain.dto.SysDataDictDTO;
 import cn.dong.nexus.modules.system.domain.dto.SysDataDictItemDTO;
 import cn.dong.nexus.modules.system.domain.query.SysDataDictQuery;
+import cn.dong.nexus.modules.system.domain.vo.SysDataDictItemSelectionVO;
 import cn.dong.nexus.modules.system.domain.vo.SysDataDictItemVO;
 import cn.dong.nexus.modules.system.domain.vo.SysDataDictVO;
 import cn.dong.nexus.modules.system.domain.vo.detail.SysDataDictDetailVO;
@@ -14,7 +15,6 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.apache.ibatis.annotations.Delete;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -94,5 +94,12 @@ public class SysDataDictController {
     public Result<Void> deleteDictItem(@PathVariable String itemId) {
         service.deleteItem(itemId);
         return Result.success();
+    }
+
+    @GetMapping("/code/{code}/item")
+    @Operation(summary = "根据编码获取字典项")
+    public Result<List<SysDataDictItemSelectionVO>> getItemsByCode(@PathVariable String code) {
+        List<SysDataDictItemSelectionVO> result = service.getItemsByCode(code);
+        return Result.success(result);
     }
 }

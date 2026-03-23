@@ -98,6 +98,10 @@ public interface GlobalConstants {
          * 用户身份 普通用户
          */
         Integer NORMAL = 2;
+        /**
+         * 用户身份 特殊用户
+         */
+        Integer SPECIAL = 3;
     }
 
     interface EkpLeaveType {
@@ -138,5 +142,7 @@ public interface GlobalConstants {
         String CMT_6S_REVIEW = "cmt_6s_review";
         String CMT_DEPT = "cmt_department";
         String CMT_USER = "cmt_user";
+        String CMT_PERMISSION = "cmt_permission";
+        String SYS_DATA_DICT_ITEM = "sys_data_dict_item";
     }
 }

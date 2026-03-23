@@ -1,5 +1,7 @@
 package cn.dong.nexus.modules.system.service.impl;
 
+import cn.dong.nexus.common.api.CommonDataDictApi;
+import cn.dong.nexus.common.domain.bo.DataDictBO;
 import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.base.BaseEntity;
 import cn.dong.nexus.core.exception.BizException;
@@ -10,6 +12,7 @@ import cn.dong.nexus.modules.system.domain.dto.SysDataDictItemDTO;
 import cn.dong.nexus.modules.system.domain.entity.SysDataDict;
 import cn.dong.nexus.modules.system.domain.entity.SysDataDictItem;
 import cn.dong.nexus.modules.system.domain.query.SysDataDictQuery;
+import cn.dong.nexus.modules.system.domain.vo.SysDataDictItemSelectionVO;
 import cn.dong.nexus.modules.system.domain.vo.SysDataDictItemVO;
 import cn.dong.nexus.modules.system.domain.vo.SysDataDictVO;
 import cn.dong.nexus.modules.system.domain.vo.detail.SysDataDictDetailVO;
@@ -17,6 +20,7 @@ import cn.dong.nexus.modules.system.mapper.SysDataDictMapper;
 import cn.dong.nexus.modules.system.service.ISysDataDictItemService;
 import cn.dong.nexus.modules.system.service.ISysDataDictService;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -30,7 +34,7 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-public class SysDataDictServiceImpl extends ServiceImpl<SysDataDictMapper, SysDataDict> implements ISysDataDictService {
+public class SysDataDictServiceImpl extends ServiceImpl<SysDataDictMapper, SysDataDict> implements ISysDataDictService, CommonDataDictApi {
     private final ISysDataDictItemService dataDictItemService;
 
     @Override
@@ -102,5 +106,37 @@ public class SysDataDictServiceImpl extends ServiceImpl<SysDataDictMapper, SysDa
             throw new BizException(ApiMessage.NOT_FOUND);
         }
         return BeanUtil.copyProperties(dataDict, SysDataDictDetailVO.class);
+    }
+
+    @Override
+    public List<SysDataDictItemSelectionVO> getItemsByCode(String code) {
+        SysDataDict dataDict = this.lambdaQuery().eq(SysDataDict::getCode, code).one();
+        if (Objects.isNull(dataDict)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        List<SysDataDictItem> dataDictItems = dataDictItemService.lambdaQuery()
+                .select(SysDataDictItem::getId, SysDataDictItem::getText, SysDataDictItem::getValue)
+                .eq(SysDataDictItem::getDataDictId, dataDict.getId())
+                .list();
+        if (dataDictItems.isEmpty()) {
+            return List.of();
+        }
+        return BeanUtil.copyToList(dataDictItems, SysDataDictItemSelectionVO.class);
+    }
+
+    @Override
+    public List<DataDictBO> getDataDictItems(List<String> itemIds) {
+        if (CollUtil.isEmpty(itemIds)) {
+            return List.of();
+        }
+        List<SysDataDictItem> dataDictItems = dataDictItemService.lambdaQuery()
+                .select(SysDataDictItem::getId, SysDataDictItem::getText, SysDataDictItem::getValue)
+                .in(SysDataDictItem::getId, itemIds)
+                .list();
+        if (dataDictItems.isEmpty()) {
+            return List.of();
+        }
+        return BeanUtil.copyToList(dataDictItems, DataDictBO.class);
+
     }
 }

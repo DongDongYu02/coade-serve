@@ -5,6 +5,8 @@ package cn.dong.coade.modules.cmt.constants;
  */
 public interface CmtLocalConstants {
 
+    String[] USER_BASIC_PERMISSIONS = {"leave", "outgoing", "biz-trip", "attend"};
+
     /**
      * 6S评审状态
      */

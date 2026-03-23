@@ -1,7 +1,7 @@
 package cn.dong.coade.modules.cmt.controller;
 
 import cn.dong.coade.modules.cmt.domain.dto.WecomLoginDTO;
-import cn.dong.coade.modules.cmt.service.ICmtAttendService;
+import cn.dong.coade.modules.cmt.service.ICmtUserPermissionService;
 import cn.dong.coade.modules.cmt.service.IWeComAuthService;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
@@ -18,16 +18,17 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Objects;
 
 @RestController
 @RequestMapping("/cmt/auth")
-@Tag(name = "授权登录")
+@Tag(name = "CMT授权登录")
 @RequiredArgsConstructor
-public class AuthController {
+public class CmtAuthController {
     private final IWeComAuthService weComAuthService;
-
-    private final ICmtAttendService cmtAttendService;
+    private final IAuthContext authContext;
+    private final ICmtUserPermissionService userPermissionService;
 
     @GetMapping("/checkLogin")
     @Operation(summary = "检查登录态")
@@ -54,5 +55,13 @@ public class AuthController {
         String accessToken = RandomUtil.randomString(16);
         RedisUtil.set(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN, accessToken, 60 * 60 * 24);
         return new JSONObject().set("access_token", accessToken);
+    }
+
+    @PostMapping("/permissions")
+    @Operation(summary = "获取CMT用户权限")
+    public Result<List<String>> getPermissions() {
+        LoginUser loginUser = authContext.getLoginUser();
+        List<String> permissions = userPermissionService.getPermissionsByUserId(loginUser.getId(),loginUser.getIdentity());
+        return Result.success(permissions);
     }
 }

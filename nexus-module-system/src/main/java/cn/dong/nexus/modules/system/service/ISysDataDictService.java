@@ -4,6 +4,7 @@ import cn.dong.nexus.modules.system.domain.dto.SysDataDictDTO;
 import cn.dong.nexus.modules.system.domain.dto.SysDataDictItemDTO;
 import cn.dong.nexus.modules.system.domain.entity.SysDataDict;
 import cn.dong.nexus.modules.system.domain.query.SysDataDictQuery;
+import cn.dong.nexus.modules.system.domain.vo.SysDataDictItemSelectionVO;
 import cn.dong.nexus.modules.system.domain.vo.SysDataDictItemVO;
 import cn.dong.nexus.modules.system.domain.vo.SysDataDictVO;
 import cn.dong.nexus.modules.system.domain.vo.detail.SysDataDictDetailVO;
@@ -32,4 +33,6 @@ public interface ISysDataDictService extends IService<SysDataDict> {
     void deleteItem(String itemId);
 
     SysDataDictDetailVO getDetailById(String id);
+
+    List<SysDataDictItemSelectionVO> getItemsByCode(String code);
 }

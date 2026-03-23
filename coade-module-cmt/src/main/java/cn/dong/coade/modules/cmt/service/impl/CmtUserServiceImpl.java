@@ -1,12 +1,17 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
+import cn.dong.coade.modules.cmt.domain.dto.CmtUserPermissionDTO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
+import cn.dong.coade.modules.cmt.domain.entity.CmtUserPermission;
 import cn.dong.coade.modules.cmt.domain.query.CmtUserQuery;
+import cn.dong.coade.modules.cmt.domain.vo.CmtUserPermissionVO;
 import cn.dong.coade.modules.cmt.domain.vo.CmtUserSelectionVO;
 import cn.dong.coade.modules.cmt.domain.vo.CmtUserVO;
 import cn.dong.coade.modules.cmt.mapper.CmtUserMapper;
+import cn.dong.coade.modules.cmt.service.ICmtUserPermissionService;
 import cn.dong.coade.modules.cmt.service.ICmtUserService;
 import cn.dong.nexus.common.constants.GlobalConstants;
+import cn.dong.nexus.core.resmapping.ResMappingUtil;
 import cn.dong.nexus.core.util.PageUtil;
 import cn.dong.nexus.infra.util.DynamicDataSourceUtil;
 import cn.hutool.core.collection.CollUtil;
@@ -25,6 +30,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> implements ICmtUserService {
 
+    private final ICmtUserPermissionService cmtUserPermissionService;
 
     @Override
     public IPage<CmtUserVO> getPageList(CmtUserQuery query) {
@@ -98,6 +104,9 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
 
         if (CollUtil.isNotEmpty(toInsert)) {
             this.saveBatch(toInsert);
+            List<String> cmtUserIds = toInsert.stream().map(CmtUser::getId).toList();
+            // 授予标准权限
+            cmtUserPermissionService.grantBasicPermission(cmtUserIds);
         }
 
         if (CollUtil.isNotEmpty(toUpdate)) {
@@ -120,6 +129,36 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
             vo.setEkpId(item.getEkpId());
             return vo;
         }).toList();
+    }
+
+    @Override
+    public List<CmtUserPermissionVO> getUserPermissions(String id) {
+        List<CmtUserPermission> permissions = cmtUserPermissionService.lambdaQuery()
+                .select(CmtUserPermission::getCmtPermissionId)
+                .eq(CmtUserPermission::getCmtUserId, id)
+                .list();
+        if (permissions.isEmpty()) {
+            return List.of();
+        }
+        List<CmtUserPermissionVO> result = permissions.stream().map(item -> new CmtUserPermissionVO(item.getCmtPermissionId())).toList();
+        // 字段翻译
+        ResMappingUtil.translateField(result);
+        return result;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void userPermissionsGrant(CmtUserPermissionDTO dto) {
+        // 先移除原有的
+        cmtUserPermissionService.lambdaUpdate()
+                .eq(CmtUserPermission::getCmtUserId, dto.getCmtUserId())
+                .remove();
+        // 添加新的权限
+        List<CmtUserPermission> permissions = dto.getPermissions().stream()
+                .map(item -> new CmtUserPermission(dto.getCmtUserId(), item))
+                .toList();
+        cmtUserPermissionService.saveBatch(permissions);
+
     }
 
 
@@ -152,7 +191,8 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
                || !Objects.equals(dbUser.getIdentity(), incoming.getIdentity())
                || !Objects.equals(dbUser.getAvatar(), incoming.getAvatar())
                || !Objects.equals(dbUser.getPhone(), incoming.getPhone())
-               || !Objects.equals(dbUser.getDept(), incoming.getDept());
+               || !Objects.equals(dbUser.getDept(), incoming.getDept())
+               || !Objects.equals(dbUser.getDeptId(), incoming.getDeptId());
     }
 
 }

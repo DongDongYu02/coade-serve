@@ -6,8 +6,7 @@ import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
 import cn.dong.coade.modules.cmt.service.ICmtUserService;
 import cn.dong.coade.modules.cmt.service.IWeComAuthService;
 import cn.dong.coade.modules.cmt.utils.WeComApiUtil;
-import cn.dong.nexus.core.api.ApiMessage;
-import cn.dong.nexus.core.exception.BizException;
+import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.dong.nexus.core.security.context.LoginUser;
 import cn.dong.nexus.core.security.enums.Client;
@@ -32,13 +31,23 @@ public class WeComAuthServiceImpl implements IWeComAuthService {
 
     @Override
     public LoginUserVO login(WecomLoginDTO dto) {
-//        WeComUserInfoDTO weComUserInfo = WeComApiUtil.getUserInfo(dto.getCode());
-        WeComUserInfoDTO weComUserInfo = new WeComUserInfoDTO();
-        weComUserInfo.setAvatar("https://wework.qpic.cn/wwpic/850073_Rdvw2E97RC6aRUi_1667200914/0");
-        weComUserInfo.setUserId("KD00681");
+        WeComUserInfoDTO weComUserInfo = WeComApiUtil.getUserInfo(dto.getCode());
+//        WeComUserInfoDTO weComUserInfo = new WeComUserInfoDTO();
+//        weComUserInfo.setAvatar("https://wework.qpic.cn/wwpic/850073_Rdvw2E97RC6aRUi_1667200914/0");
+//        weComUserInfo.setUserId("LinJunJie");
         CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getWeComId, weComUserInfo.getUserId()).one();
         if (Objects.isNull(user)) {
-            throw new BizException(ApiMessage.FORBIDDEN);
+            String username = WeComApiUtil.getUsername(weComUserInfo.getUserId());
+            // 用户还没有关联蓝凌
+            user = new CmtUser();
+            user.setWeComId(weComUserInfo.getUserId());
+            user.setAvatar(weComUserInfo.getAvatar());
+            user.setIdentity(GlobalConstants.UserIdentity.SPECIAL);
+            user.setId(weComUserInfo.getUserId());
+            user.setPhone(weComUserInfo.getMobile());
+            user.setUsername(username);
+            user.setEkpId("");
+            user.setDept("入职流程审批中");
         }
         LoginUser loginUser = BeanUtil.copyProperties(user, LoginUser.class);
         loginUser.setAvatar(weComUserInfo.getAvatar());
