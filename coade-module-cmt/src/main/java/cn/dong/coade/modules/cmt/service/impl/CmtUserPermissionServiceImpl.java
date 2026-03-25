@@ -52,7 +52,7 @@ public class CmtUserPermissionServiceImpl extends ServiceImpl<CmtUserPermissionM
             return permissions.stream().map(CmtPermission::getCode).toList();
         }
         // 无蓝凌关联用户
-        if(GlobalConstants.UserIdentity.SPECIAL.equals(userIdentity)){
+        if (GlobalConstants.UserIdentity.SPECIAL.equals(userIdentity)) {
             return List.of();
         }
 
@@ -67,5 +67,19 @@ public class CmtUserPermissionServiceImpl extends ServiceImpl<CmtUserPermissionM
                 .list();
         return permissions.stream().map(CmtPermission::getCode).toList();
 
+    }
+
+    @Override
+    public void removeBasicPermission(List<String> cmtUserIds) {
+        // 获取基础权限
+        List<CmtPermission> permissions = cmtPermissionService.lambdaQuery()
+                .select(CmtPermission::getId)
+                .eq(CmtPermission::getIsBasic, GlobalConstants.INT_YES)
+                .list();
+        if (permissions.isEmpty()) {
+            return;
+        }
+        List<String> permissionIds = permissions.stream().map(CmtPermission::getId).toList();
+        this.lambdaUpdate().in(CmtUserPermission::getCmtPermissionId, permissionIds).remove();
     }
 }

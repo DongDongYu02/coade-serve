@@ -14,4 +14,6 @@ public interface ICmtUserPermissionService extends IService<CmtUserPermission> {
 
 
     List<String> getPermissionsByUserId(String userId,Integer userIdentity);
+
+    void removeBasicPermission(List<String> cmtUserIds);
 }

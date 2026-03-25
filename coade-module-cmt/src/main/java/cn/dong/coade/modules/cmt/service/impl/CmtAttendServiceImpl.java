@@ -142,7 +142,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
         // 获取用户打卡规则
         String ruleGroupName = this.getUserAttendRule(ekpId);
-        EkpAttendRuleBO rule = ATTEND_RULE_MAP.get(ruleGroupName);
+        EkpAttendRuleBO rule = WeComApiUtil.getUserAttendRule(weComId, LocalDateTimeUtil.beginOfDay(LocalDateTime.now()));
 
         if (rule == null) {
             userAttendToday.forEach(item -> item.setStatus("正常"));

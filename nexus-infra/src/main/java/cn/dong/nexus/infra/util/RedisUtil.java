@@ -1,5 +1,7 @@
 package cn.dong.nexus.infra.util;
 
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,7 +18,7 @@ import java.util.concurrent.TimeUnit;
  * Redis工具类
  */
 @Component
-public class RedisUtil {
+public class RedisUtil<T> {
     private static final Logger log = LoggerFactory.getLogger(RedisUtil.class);
 
     private static RedisTemplate<String, Object> redisTemplate;
@@ -98,6 +100,18 @@ public class RedisUtil {
      */
     public static Object get(String key) {
         return key == null ? null : redisTemplate.opsForValue().get(key);
+    }
+
+    public static <T> T get(String key, Class<T> clazz) {
+        if (StrUtil.isBlank(key)) {
+            return null;
+        }
+
+        Object cache = redisTemplate.opsForValue().get(key);
+        if (Objects.isNull(cache)) {
+            return null;
+        }
+        return JSONUtil.toBean(JSONUtil.toJsonStr(cache), clazz);
     }
 
     /**

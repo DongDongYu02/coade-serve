@@ -1,10 +1,5 @@
 package cn.dong.nexus;
 
-import cn.dong.coade.modules.cmt.domain.bo.SixSVideoResult;
-import cn.dong.coade.modules.cmt.service.ICmtDepartmentService;
-import cn.dong.coade.modules.cmt.service.SixSVideoAnalyzeService;
-import cn.dong.coade.modules.cmt.service.impl.CmtAttendServiceImpl;
-import cn.hutool.extra.spring.SpringUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.annotation.MapperScan;
@@ -41,7 +36,6 @@ public class NexusApplication {
                 env.getProperty("server.port"),
                 env.getProperty("server.servlet.context-path") == null ? "" : env.getProperty("server.servlet.context-path"));
 
-//        CmtAttendServiceImpl bean = SpringUtil.getBean(CmtAttendServiceImpl.class);
-//        bean.test();
+
     }
 }

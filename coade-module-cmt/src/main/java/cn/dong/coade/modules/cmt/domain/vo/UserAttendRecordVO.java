@@ -2,6 +2,7 @@ package cn.dong.coade.modules.cmt.domain.vo;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
+import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import lombok.experimental.Accessors;
 
@@ -9,6 +10,7 @@ import lombok.experimental.Accessors;
 @Schema(description = "用户企微打卡记录 VO")
 @NoArgsConstructor
 @Accessors(chain = true)
+@EqualsAndHashCode(callSuper = false)
 public class UserAttendRecordVO {
 
     @Schema(description = "打卡时间 yyyy-MM-dd HH:mm")

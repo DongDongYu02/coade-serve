@@ -113,6 +113,12 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
             this.updateBatchById(toUpdate);
         }
 
+        // 更新所有人员的标准权限
+        List<String> userIds = this.lambdaQuery().select(CmtUser::getId).list().stream().map(CmtUser::getId).toList();
+        cmtUserPermissionService.removeBasicPermission(userIds);
+        cmtUserPermissionService.grantBasicPermission(userIds);
+
+
     }
 
     @Override
@@ -171,7 +177,6 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
                 users.stream()
                         .peek(item -> {
                             item.setId(null);
-                            item.setIdentity(GlobalConstants.UserIdentity.NORMAL);
                             item.setStatus(GlobalConstants.ENABLE_STATUS.ENABLED);
                         })
                         .collect(Collectors.toMap(
@@ -188,7 +193,6 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
         return !Objects.equals(dbUser.getUsername(), incoming.getUsername())
                || !Objects.equals(dbUser.getEkpId(), incoming.getEkpId())
                || !Objects.equals(dbUser.getStatus(), incoming.getStatus())
-               || !Objects.equals(dbUser.getIdentity(), incoming.getIdentity())
                || !Objects.equals(dbUser.getAvatar(), incoming.getAvatar())
                || !Objects.equals(dbUser.getPhone(), incoming.getPhone())
                || !Objects.equals(dbUser.getDept(), incoming.getDept())

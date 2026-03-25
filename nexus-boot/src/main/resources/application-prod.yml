@@ -1,0 +1,114 @@
+server:
+  port: 9981
+nexus:
+  file-upload-path: /www/wwwroot/upload/
+  file-access-url: http://oa.zjkede.com:5100/file/
+  aes-key: 1RR1JeyfUWvy1gmZFoO439Tk43dPdI92C1hZ6Tr2wFo=
+coade:
+  cmt:
+    we-com-corp-id: wwf1cc9fcdfb5879a6
+    we-com-secret: fHE46_y9VGU2ZZ8Bo1VD1ElKnQi5X-Hzo2cly4Z6C-c
+  vrs:
+    app-id: wx1d42749a3c5ffc1a
+    app-secret: f407bf39fb88fb7772f6c8e475b2df40
+    allowed-host: oa.zjkede.com:5100
+  ekp:
+    server-url: http://10.0.10.30:9081
+  attend-device-sn:
+    - 9G04DC0PAJ3461E
+    - AH0642APAJ85747
+    - BE04C81PAJEE1D2
+    - AH0642APAJ6FCC1
+    - AH0642APAJCE2A2
+    - AH0642APAJ24F80
+spring:
+  application:
+    name: nexus-admin
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: GMT+8
+  datasource:
+    dynamic:
+      druid:
+        async-init: true
+      primary: local-mysql
+      strict: false
+      datasource:
+        local-mysql:
+          url:  jdbc:mysql://127.0.0.1:3306/coade-serve?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&sslMode=DISABLED&allowPublicKeyRetrieval=true
+          username: coade-serve
+          password: nEfasxAZh3kwDyL7
+          driver-class-name: com.mysql.cj.jdbc.Driver
+        ekp-sqlserver:
+          url: jdbc:sqlserver://10.0.10.210:1433;DatabaseName=ekp;encrypt=false;trustServerCertificate=true;useSSL=false
+          username: sa
+          password: win*Coade#..
+          driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 10s
+      lettuce:
+        pool:
+          max-active: 8
+          max-wait: -1ms
+          max-idle: 8
+          min-idle: 0
+  servlet:
+    multipart:
+      max-file-size: 101MB
+      max-request-size: 100MB
+
+mybatis-plus:
+  mapper-locations: classpath*:mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  global-config:
+    db-config:
+      id-type: ASSIGN_ID
+    enable-sql-runner: true
+
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+  api-docs:
+    path: /v3/api-docs
+  group-configs:
+    - group: 'COADE-CMT'
+      paths-to-match: '/**'
+      packages-to-scan: cn.dong.coade.modules.cmt
+    - group: 'NEXUS-BOOT'
+      paths-to-match: '/**'
+      packages-to-scan: cn.dong.nexus.controller
+    - group: 'RBAC'
+      paths-to-match: '/**'
+      packages-to-scan: cn.dong.nexus.modules.rbac
+    - group: 'SYSTEM'
+      paths-to-match: '/**'
+      packages-to-scan: cn.dong.nexus.modules.system
+
+sa-token:
+  token-name: Authorization
+  timeout: 86400
+  is-concurrent: true
+  is-share: true
+  token-style: random-64
+#  is-log: true
+  token-prefix: Bearer
+  is-read-cookie: false
+
+langchain4j:
+  open-ai:
+    chat-model:
+      api-key: sk-77618696a39c47d28cda80b4341b41e4
+      model-name: qwen3.5-flash
+      base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      log-requests: true
+      log-responses: true
+      timeout: 50000000
+      max-retries: 0

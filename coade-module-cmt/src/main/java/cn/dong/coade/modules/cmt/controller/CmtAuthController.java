@@ -61,7 +61,7 @@ public class CmtAuthController {
     @Operation(summary = "获取CMT用户权限")
     public Result<List<String>> getPermissions() {
         LoginUser loginUser = authContext.getLoginUser();
-        List<String> permissions = userPermissionService.getPermissionsByUserId(loginUser.getId(),loginUser.getIdentity());
+        List<String> permissions = userPermissionService.getPermissionsByUserId(loginUser.getId(), loginUser.getIdentity());
         return Result.success(permissions);
     }
 }
