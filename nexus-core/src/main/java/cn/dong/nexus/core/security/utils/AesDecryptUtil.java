@@ -33,7 +33,7 @@ public class AesDecryptUtil {
 
     public static String decrypt(String encrypt) {
         try {
-            String aesKey = SpringUtil.getProperty("nexus.aes-key");
+            String aesKey = SpringUtil.getProperty("coade.aes-key");
             String[] encryption = encrypt.split(":");
             String data = encryption[0];
             String iv = encryption[1];

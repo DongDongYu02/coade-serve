@@ -69,50 +69,30 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     private static final String ATTEND_REISSUE_EKP_REVIEW_TEMPLATE_ID = "16be9d5fc79ef23244153e6457b9483a";
 
-    private static final Map<String, EkpAttendRuleBO> ATTEND_RULE_MAP = Map.of(
-            "多部门班次", new EkpAttendRuleBO(new String[][]{
-                    {"08:00", "11:45"},
-                    {"12:45", "17:30"}
-            }, new int[]{1, 2, 3, 4, 5, 6}),
-            "11:30两班次", new EkpAttendRuleBO(new String[][]{
-                    {"08:00", "11:30"},
-                    {"12:30", "17:30"}
-            }, new int[]{1, 2, 3, 4, 5, 6}),
-            "注塑部", new EkpAttendRuleBO(new String[][]{
-                    {"08:00", "11:30"},
-                    {"12:00", "17:30"},
-                    {"18:00", "20:30"}
-            }, new int[]{1, 2, 3, 4, 5, 6, 7}),
-            "销售部", new EkpAttendRuleBO(new String[][]{
-                    {"08:40", "11:30"},
-                    {"12:30", "16:40"}
-            }, new int[]{1, 2, 3, 4, 5}),
-            "林克", new EkpAttendRuleBO(new String[][]{
-                    {"08:30", "11:30"},
-                    {"12:30", "17:00"}
-            }, new int[]{2, 4, 6})
-    );
-
     /**
      * 获取用户今日企微打卡记录
      */
     @Override
-    @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
     public UserAttendInfoVO getUserTodayAttend() {
+        LocalDate today = LocalDate.now();
+        return SpringUtil.getBean(this.getClass()).getUserAttendByDate(today.getYear(), today.getMonthValue(), today.getDayOfMonth());
+    }
+
+    @Override
+    @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
+    public UserAttendInfoVO getUserAttendByDate(int year, int month, int day) {
+        long start = System.currentTimeMillis();
         LoginUser loginUser = authContext.getLoginUserOrThrow();
         String weComId = loginUser.getExtInfo().get("weComId").toString();
         String ekpId = loginUser.getExtInfo().get("ekpId").toString();
-
-
-        LocalDate now = LocalDate.now();
+        LocalDate now = LocalDate.of(year, month, day);
         LocalDateTime todayBegin = LocalDateTimeUtil.beginOfDay(now);
         LocalDateTime todayEnd = LocalDateTimeUtil.endOfDay(now);
-
-        List<UserAttendRecordVO> userAttendToday = WeComApiUtil.getUserAttend(weComId, todayBegin, todayEnd);
+        List<UserAttendRecordVO> userAttend = WeComApiUtil.getUserAttend(weComId, todayBegin, todayEnd);
         // 未关联蓝凌的用户
         if (GlobalConstants.UserIdentity.SPECIAL.equals(loginUser.getIdentity())) {
-            userAttendToday.forEach(item -> item.setStatus("正常"));
-            return new UserAttendInfoVO("暂无考勤规则", userAttendToday, new UserLeaveAttendVO());
+            userAttend.forEach(item -> item.setStatus("正常"));
+            return new UserAttendInfoVO("暂无考勤规则", userAttend, new UserLeaveAttendVO());
         }
 
         // 查询用户今天的补卡记录
@@ -126,7 +106,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         if (!attendReissues.isEmpty()) {
             Map<LocalDateTime, Integer> reissueRecordsMap = attendReissues.stream().collect(Collectors.toMap(CmtAttendReissue::getCheckinTime, CmtAttendReissue::getIsApproved));
             // 这里要把补卡通过的打卡记录过滤掉，因为补卡是新增一条规则打卡记录
-            userAttendToday = userAttendToday.stream().filter(item -> {
+            userAttend = userAttend.stream().filter(item -> {
                 if (item.getIsReissue() == 1) {
                     return true;
                 }
@@ -141,22 +121,25 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         }
 
         // 获取用户打卡规则
-        String ruleGroupName = this.getUserAttendRule(ekpId);
-        EkpAttendRuleBO rule = WeComApiUtil.getUserAttendRule(weComId, LocalDateTimeUtil.beginOfDay(LocalDateTime.now()));
 
-        if (rule == null) {
-            userAttendToday.forEach(item -> item.setStatus("正常"));
-            return new UserAttendInfoVO("无需打卡", userAttendToday, new UserLeaveAttendVO());
+        EkpAttendRuleBO rule = WeComApiUtil.getUserAttendRule(weComId, todayBegin);
+//        String[][] range = {{"08:00", "11:30"}, {"12:30", "17:30"}};
+//        EkpAttendRuleBO rule =   new EkpAttendRuleBO(range,new int[]{1,2,3,4,5,6},AttendRuleType.FIXED);
+
+
+        if (Objects.isNull(rule)) {
+            userAttend.forEach(item -> item.setStatus("正常"));
+            return new UserAttendInfoVO("无需打卡", userAttend, new UserLeaveAttendVO());
         }
+
         String ruleInfo = this.buildRuleInfoText(rule);
 
 
         // 请假记录
         List<EkpAttendBusinessBO> leaveInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.LEAVE);
 //        EkpAttendBusinessBO r = new EkpAttendBusinessBO();
-//        r.setStartTime(LocalDateTime.of(2026, 3, 9, 17, 0));
-//        r.setEndTime(LocalDateTime.of(2026, 3, 9, 17, 30));
-
+//        r.setStartTime(LocalDateTime.of(2026, 3, 30, 8, 0));
+//        r.setEndTime(LocalDateTime.of(2026, 3, 30, 11, 55));
 //        List<EkpAttendBusinessBO> leaveInfo = List.of(r);
         // 外出记录
         List<EkpAttendBusinessBO> outInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.OUTGOING);
@@ -164,9 +147,9 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         List<EkpAttendBusinessBO> tripInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.BIZ_TRIP);
 
         UserLeaveAttendVO userLeaveAttendVO = attendRecordCalculator.buildUserTodayLeaveInfo(leaveInfo, outInfo, tripInfo);
-        userAttendToday = attendRecordCalculator.calculate(
+        userAttend = attendRecordCalculator.calculate(
                 now,
-                userAttendToday,
+                userAttend,
                 rule,
                 leaveInfo,
                 outInfo,
@@ -177,7 +160,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         if (!attendReissues.isEmpty()) {
             Map<LocalDateTime, Integer> reissueRecordsMap = attendReissues.stream().collect(Collectors.toMap(CmtAttendReissue::getRuleCheckinTime, CmtAttendReissue::getIsApproved));
 
-            userAttendToday.forEach(record -> {
+            userAttend.forEach(record -> {
                 LocalDateTime getRuleCheckinTime = LocalDateTimeUtil.parse(record.getRuleCheckinTime(), "yyyy-MM-dd HH:mm");
                 if (reissueRecordsMap.containsKey(getRuleCheckinTime)) {
                     Integer isApproved = reissueRecordsMap.get(getRuleCheckinTime);
@@ -185,13 +168,23 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 }
             });
         }
-        return new UserAttendInfoVO(ruleInfo, userAttendToday, userLeaveAttendVO);
+        long end = System.currentTimeMillis();
+        log.info("用户：{} 获取考勤耗时：{}，考勤日期：{}", loginUser.getUsername(), end - start, LocalDateTimeUtil.format(now, GlobalConstants.DatePattern.NORMAL_ONLY_DATE));
+        return new UserAttendInfoVO(ruleInfo, userAttend, userLeaveAttendVO);
+
     }
 
     private String buildRuleInfoText(EkpAttendRuleBO rule) {
         String[][] timeRanges = rule.getTimeRanges();
         return Arrays.stream(timeRanges)
-                .map(range -> StrUtil.format("{}-{}", range[0], range[1]))
+                .map(range -> {
+                    String start = range[0];
+                    String end = range[1];
+                    if (start.equals(end)) {
+                        return start;
+                    }
+                    return StrUtil.format("{}-{}", range[0], range[1]);
+                })
                 .collect(Collectors.joining(", "));
     }
 

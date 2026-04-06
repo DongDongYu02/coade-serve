@@ -12,6 +12,7 @@ import cn.dong.nexus.core.security.context.LoginUser;
 import cn.dong.nexus.core.security.enums.Client;
 import cn.dong.nexus.core.security.vo.LoginUserVO;
 import cn.hutool.core.bean.BeanUtil;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -28,11 +29,11 @@ public class WeComAuthServiceImpl implements IWeComAuthService {
     private final IAuthContext authContext;
 
     @Override
-    public LoginUserVO login(WecomLoginDTO dto) {
+    public LoginUserVO login(WecomLoginDTO dto, HttpServletResponse response) {
         WeComUserInfoDTO weComUserInfo = WeComApiUtil.getUserInfo(dto.getCode());
 //        WeComUserInfoDTO weComUserInfo = new WeComUserInfoDTO();
 //        weComUserInfo.setAvatar("https://wework.qpic.cn/wwpic/850073_Rdvw2E97RC6aRUi_1667200914/0");
-//        weComUserInfo.setUserId("KD00681");
+//        weComUserInfo.setUserId("KD00753");
         CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getWeComId, weComUserInfo.getUserId()).one();
         if (Objects.isNull(user)) {
             String username = WeComApiUtil.getUsername(weComUserInfo.getUserId());

@@ -233,4 +233,11 @@ public class ResMappingUtil {
         translateField(single);
     }
 
+    public static <K, F, V> V getFieldMappingValue(F key,
+                                                   SFunction<K, F> keyFiledGetter,
+                                                   SFunction<K, V> valFiledGetter) {
+        Map<F, V> fieldMapping = getFieldMapping(List.of(key), keyFiledGetter, valFiledGetter, false);
+        return fieldMapping.get(key);
+    }
+
 }

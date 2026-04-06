@@ -34,4 +34,7 @@ public interface CmtLocalConstants {
     }
 
 
+    Integer ATTEND_RULE_IMD_WECOM_ID = 13;
+
+
 }

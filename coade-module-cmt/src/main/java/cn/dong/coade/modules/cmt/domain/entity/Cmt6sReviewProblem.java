@@ -19,5 +19,7 @@ public class Cmt6sReviewProblem {
 
     private String assister;
 
+    private LocalDateTime deadline;
+
 
 }

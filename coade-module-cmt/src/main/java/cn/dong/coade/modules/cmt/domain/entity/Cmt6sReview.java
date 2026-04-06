@@ -20,4 +20,5 @@ public class Cmt6sReview extends BaseEntity {
 
     private String responsiblePersonId;
 
+    private String ekpReviewId;
 }

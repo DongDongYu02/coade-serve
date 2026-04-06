@@ -1,17 +1,18 @@
 server:
   port: 9981
-nexus:
-  file-upload-path: D:/upload/
-  file-access-url: http://oa.zjkede.com:5100/file/
-  aes-key: 1RR1JeyfUWvy1gmZFoO439Tk43dPdI92C1hZ6Tr2wFo=
 coade:
+  domain: http://oa.zjkede.com:5200
+  file-upload-path: D:/upload/
+  file-access-url: ${coade.domain}/file/
+  aes-key: 1RR1JeyfUWvy1gmZFoO439Tk43dPdI92C1hZ6Tr2wFo=
   cmt:
+    domain: http://oa.zjkede.com:5200
     we-com-corp-id: wwf1cc9fcdfb5879a6
     we-com-secret: z2prTx7uesObBHytg823I1DVxu_puuVJVKm0VPmY8xk
+    we-com-agent-id: 1000039
   vrs:
     app-id: wx1d42749a3c5ffc1a
     app-secret: f407bf39fb88fb7772f6c8e475b2df40
-    allowed-host: oa.zjkede.com:5100
   ekp:
     server-url: http://10.0.10.30:9081
   attend-device-sn:
@@ -98,7 +99,8 @@ sa-token:
   token-style: random-64
   is-log: true
   token-prefix: Bearer
-  is-read-cookie: false
+  is-read-cookie: true
+  cookie-auto-fill-prefix: true
 
 langchain4j:
   open-ai:

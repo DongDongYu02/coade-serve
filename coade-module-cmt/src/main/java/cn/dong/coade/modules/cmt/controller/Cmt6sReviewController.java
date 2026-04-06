@@ -9,6 +9,7 @@ import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewVO;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewService;
 import cn.dong.nexus.core.api.Result;
 import cn.dong.nexus.core.resmapping.annotation.ResultTranslate;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -40,6 +41,13 @@ public class Cmt6sReviewController {
         return Result.success();
     }
 
+    @GetMapping("/re-analyze")
+    @Operation(summary = "重新分析")
+    public Result<Void> reAnalyze(@RequestParam("reviewId") String reviewId) {
+        cmt6sReviewService.reAnalyze(reviewId);
+        return Result.success();
+    }
+
     @GetMapping("/{id}")
     @Operation(summary = "详情")
     public Result<Cmt6sReviewDetailVO> detail(@PathVariable String id) {
@@ -58,6 +66,22 @@ public class Cmt6sReviewController {
     @Operation(summary = "发起整改")
     public Result<Void> issueRectify(@RequestBody @Validated Issue6sReviewRectifyDTO dto) {
         cmt6sReviewService.issueRectify(dto);
+        return Result.success();
+    }
+
+
+    @PostMapping("/rectify-completed/callback")
+    @Operation(summary = "整改完成")
+    public Result<Void> rectifyCompleted(@RequestBody String body, @RequestParam("access_token") String accessToken) {
+//        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
+//        if (Objects.isNull(token)) {
+//            return Result.error("ekp callback accessToken has expired!");
+//        }
+//        if (!String.valueOf(token).equals(accessToken)) {
+//            return Result.error("ekp callback accessToken is invalid!");
+//        }
+        String ekpReviewId = JSONUtil.parseObj(body).getStr("ekpReviewId");
+        cmt6sReviewService.rectifyCompleted(ekpReviewId);
         return Result.success();
     }
 

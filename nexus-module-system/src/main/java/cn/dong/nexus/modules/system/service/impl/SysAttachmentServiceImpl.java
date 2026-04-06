@@ -6,7 +6,6 @@ import cn.dong.nexus.common.domain.bo.AttachmentBO;
 import cn.dong.nexus.common.domain.bo.AttachmentOwnerSaveBO;
 import cn.dong.nexus.core.exception.BizException;
 import cn.dong.nexus.modules.system.domain.entity.SysAttachment;
-import cn.dong.nexus.modules.system.domain.entity.SysAttachmentOwner;
 import cn.dong.nexus.modules.system.domain.vo.AttachmentVO;
 import cn.dong.nexus.modules.system.mapper.SysAttachmentMapper;
 import cn.dong.nexus.modules.system.service.ISysAttachmentOwnerService;
@@ -23,7 +22,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -33,7 +31,7 @@ public class SysAttachmentServiceImpl extends ServiceImpl<SysAttachmentMapper, S
 
     private final ISysAttachmentOwnerService attachmentOwnerService;
 
-    @Value("${nexus.file-upload-path}")
+    @Value("${coade.file-upload-path}")
     private String uploadPath;
 
     @Override

@@ -15,11 +15,17 @@ public class CoadeProperties {
     private Ekp ekp;
     private Vrs vrs;
     private List<String> attendDeviceSn;
+    private String domain;
+    private String FileUploadPath;
+    private String FileAccessUrl;
+    private String aesKey;
 
     @Data
     public static class Cmt {
         private String weComCorpId;
         private String weComSecret;
+        private String weComAgentId;
+        private String domain;
     }
 
     @Data

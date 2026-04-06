@@ -5,6 +5,8 @@ import cn.dong.coade.modules.cmt.domain.dto.Cmt6sReviewDTO;
 import cn.dong.coade.modules.cmt.domain.dto.Issue6sReviewRectifyDTO;
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReview;
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReviewProblem;
+import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
+import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
 import cn.dong.coade.modules.cmt.domain.query.Cmt6sReviewQuery;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewDetailVO;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewStatusCountVO;
@@ -14,24 +16,39 @@ import cn.dong.coade.modules.cmt.service.AI6sService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewProblemService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewService;
 import cn.dong.nexus.common.api.CommonAttachmentService;
+import cn.dong.nexus.common.constants.ApiConstants;
 import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.common.domain.bo.AttachmentBO;
 import cn.dong.nexus.common.domain.bo.AttachmentOwnerSaveBO;
 import cn.dong.nexus.common.domain.vo.AttachmentVO;
 import cn.dong.nexus.core.api.ApiMessage;
+import cn.dong.nexus.core.config.properties.CoadeProperties;
 import cn.dong.nexus.core.exception.BizException;
 import cn.dong.nexus.core.resmapping.ResMappingUtil;
 import cn.dong.nexus.core.util.PageUtil;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.date.LocalDateTimeUtil;
+import cn.hutool.core.lang.UUID;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONArray;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestTemplate;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -40,14 +57,14 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6sReview> implements ICmt6sReviewService {
 
     private final CommonAttachmentService attachmentService;
     private final ICmt6sReviewProblemService cmt6sReviewProblemService;
     private final AI6sService ai6sService;
-
-    @Value("${nexus.file-access-url}")
-    private String fileAccessUrl;
+    private final CoadeProperties coadeProperties;
+    private final RestTemplate restTemplate;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -60,6 +77,21 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         // 调用 AI6S 分析
         ai6sService.analyze(entity.getId(), dto.getAttachmentIds());
     }
+
+    @Override
+    public void reAnalyze(String reviewId) {
+        Cmt6sReview review = this.getById(reviewId);
+        if (Objects.isNull(review)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        List<String> attachmentIds = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW,
+                List.of(reviewId)).stream().map(AttachmentBO::getId).toList();
+        this.lambdaUpdate().set(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.IN_ANALYSIS)
+                .eq(Cmt6sReview::getId, reviewId)
+                .update();
+        ai6sService.analyze(reviewId, attachmentIds);
+    }
+
 
     @Override
     public IPage<Cmt6sReviewVO> getPageList(Cmt6sReviewQuery query) {
@@ -76,7 +108,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         Cmt6sReviewDetailVO detail = BeanUtil.copyProperties(record, Cmt6sReviewDetailVO.class);
         // 获取评审素材
         List<AttachmentBO> materials = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW, List.of(id));
-        detail.setMaterials(materials.stream().map(item -> new AttachmentVO(item.getId(), fileAccessUrl + item.getPath())).toList());
+        detail.setMaterials(materials.stream().map(item -> new AttachmentVO(item.getId(), coadeProperties.getFileAccessUrl() + item.getPath())).toList());
 
         // 获取评审问题
         List<Cmt6sReviewProblem> dbProblems = cmt6sReviewProblemService.lambdaQuery().eq(Cmt6sReviewProblem::getReviewId, id).list();
@@ -94,7 +126,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         List<Cmt6sReviewDetailVO.Problem> problems = BeanUtil.copyToList(dbProblems, Cmt6sReviewDetailVO.Problem.class);
         problems.forEach(item -> {
             List<AttachmentBO> images = imageGroup.getOrDefault(item.getId(), List.of());
-            item.setImages(images.stream().map(img -> new AttachmentVO(img.getId(), fileAccessUrl + img.getPath())).collect(Collectors.toList()));
+            item.setImages(images.stream().map(img -> new AttachmentVO(img.getId(), coadeProperties.getFileAccessUrl() + img.getPath())).collect(Collectors.toList()));
         });
         detail.setProblems(problems);
         // 字段翻译
@@ -167,11 +199,27 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         attachmentService._removeByIds(removedProblemImageIds);
         // 关联新的问题图片
         attachmentService.saveAttachmentsOwner(updateProblemImages);
+        // 发起 EKP流程
+        String ekpReviewId = this.initiateEkp6sRectifyReview(dto, review);
         // 更新6S评审
         this.lambdaUpdate()
+                .set(Cmt6sReview::getEkpReviewId, ekpReviewId)
                 .set(Cmt6sReview::getResponsiblePersonId, dto.getResponsiblePersonId())
                 .set(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.PENDING_RECTIFY)
                 .eq(Cmt6sReview::getId, dto.getId())
+                .update();
+
+    }
+
+    @Override
+    public void rectifyCompleted(String ekpReviewId) {
+        Cmt6sReview review = this.lambdaQuery().eq(Cmt6sReview::getEkpReviewId, ekpReviewId).one();
+        if (Objects.isNull(review)) {
+            log.error("EKP回调整改完成失败，未找到关联的6S评审记录，ekpReviewId={}", ekpReviewId);
+        }
+        this.lambdaUpdate()
+                .set(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.COMPLETED)
+                .eq(Cmt6sReview::getEkpReviewId, ekpReviewId)
                 .update();
     }
 
@@ -226,5 +274,65 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
                     .toList();
             updateProblemImages.addAll(problemImages);
         });
+    }
+
+    private String initiateEkp6sRectifyReview(Issue6sReviewRectifyDTO dto, Cmt6sReview review) {
+        // 6S整改标题
+        String docSubject = StrUtil.format(review.getTitle());
+        // 创建人
+        String ekpId = ResMappingUtil.getFieldMappingValue(review.getCreateBy(), CmtUser::getId, CmtUser::getEkpId);
+        String docCreator = new JSONObject().set("Id", ekpId).toJSONString(1);
+        JSONObject content = new JSONObject();
+        // 责任部门
+        String depId = ResMappingUtil.getFieldMappingValue(review.getDeptId(), CmtDepartment::getId, CmtDepartment::getEkpOrgId);
+        content.set("fd_3e8b05b852e42c", new JSONObject().set("Id", depId));
+        // 责任人
+        content.set("fd_3e8b05c3b915ce", new JSONObject().set("Id", dto.getResponsiblePersonId()));
+
+        MultiValueMap<String, Object> wholeForm = new LinkedMultiValueMap<>();
+
+        // 整改项
+        JSONArray items = new JSONArray();
+        for (int i = 0; i < dto.getProblems().size(); i++) {
+            Issue6sReviewRectifyDTO.Problem problem = dto.getProblems().get(i);
+            String attKey = UUID.fastUUID().toString(true);
+            JSONObject item = new JSONObject()
+                    // 整改内容
+                    .set("fd_3e8b057dd5931c.fd_3e8b06cf4a9d4c", problem.getTitle())
+                    // 截止日期
+                    .set("fd_3e8b057dd5931c.fd_3e8b06d20587fe", LocalDateTimeUtil.format(problem.getDeadline(), GlobalConstants.DatePattern.Y_M_D_H_M))
+                    // 协助人
+                    .set("fd_3e8b057dd5931c.fd_3e8b08373a1ea4", new JSONObject().set("Id", dto.getResponsiblePersonId()))
+                    // 问题照片
+                    .set("fd_3e8b057dd5931c.fd_3e8b05f375483e", attKey);
+            String attForm = StrUtil.format("attachmentForms[{}]", i);
+            wholeForm.add(attForm + ".fdKey", attKey);
+            wholeForm.add(attForm + ".fdFileName", StrUtil.format("{}.png", RandomUtil.randomString(5)));
+            String imagePath = coadeProperties.getFileUploadPath() + problem.getImages().getFirst().getPath().replace(coadeProperties.getFileAccessUrl(), "");
+            wholeForm.add(attForm + ".fdAttachment", new FileSystemResource(new File(imagePath)));
+            items.add(item);
+        }
+        content.set("fd_3e8b057dd5931c", items);
+        wholeForm.add("docSubject", docSubject);
+        wholeForm.add("docCreator", docCreator);
+        wholeForm.add("docStatus", 20);
+        wholeForm.add("fdTemplateId", "199e1d2c5cff3ef9e9b53a346f0ab173");
+        wholeForm.add("formValues", content.toJSONString(1));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(wholeForm, headers);
+
+        String url = coadeProperties.getEkp().getServerUrl() + ApiConstants.INITIATE_EKP_REVIEW;
+
+        ResponseEntity<String> resp = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+        if (Objects.isNull(resp.getBody()) || StrUtil.isBlank(resp.getBody())) {
+            log.error("发起补卡申请到EKP审批失败，EKP接口返回异常，url={}, body={}", url, resp.getBody());
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        if (JSONUtil.isTypeJSON(resp.getBody())) {
+            log.error("发起补卡申请到EKP审批失败，EKP接口返回异常，url={}, body={}", url, resp.getBody());
+        }
+        return resp.getBody();
+
     }
 }

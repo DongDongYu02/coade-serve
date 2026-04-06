@@ -6,11 +6,7 @@ import cn.dong.coade.modules.cmt.domain.vo.UserAttendInfoVO;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
-import cn.dong.nexus.core.exception.BizException;
-import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.dong.nexus.infra.util.RedisUtil;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,6 +28,13 @@ public class CmtAttendController {
     @Operation(summary = "获取用户今日考勤信息")
     public Result<UserAttendInfoVO> getAttendToday() {
         UserAttendInfoVO result = attendService.getUserTodayAttend();
+        return Result.success(result);
+    }
+
+    @GetMapping("/date/{year}/{month}/{day}")
+    @Operation(summary = "获取用户当天考勤")
+    public Result<UserAttendInfoVO> getAttendByDate(@PathVariable int year, @PathVariable int month, @PathVariable int day) {
+        UserAttendInfoVO result = attendService.getUserAttendByDate(year, month, day);
         return Result.success(result);
     }
 

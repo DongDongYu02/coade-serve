@@ -1,7 +1,9 @@
 package cn.dong.coade.modules.cmt.utils;
 
+import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttendRuleBO;
 import cn.dong.coade.modules.cmt.domain.dto.WeComUserInfoDTO;
+import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.ApiMessage;
@@ -31,8 +33,8 @@ public class WeComApiUtil {
     private static final String ATTEND_RULE_CACHE_KEY_PREFIX = "wecom:attend_rule";
     private static final String REISSUE_NOTES = "已补卡";
     private static final String CORP_ID = SpringUtil.getProperty("coade.cmt.we-com-corp-id");
-
     private static final String SECRET = SpringUtil.getProperty("coade.cmt.we-com-secret");
+
 
     private static String getAccessToken() {
         Object accessTokenCache = RedisUtil.get(ACCESS_TOKEN_CACHE_KEY);
@@ -94,6 +96,7 @@ public class WeComApiUtil {
             log.error("获取企微UserTicket失败：{}", respJson.getStr("errmsg"));
             throw new BizException("企微免登授权失败，请稍后重试！");
         }
+        log.info("get wxwork uset ticket:{}", resp);
         return respJson.getStr("user_ticket");
     }
 
@@ -155,6 +158,27 @@ public class WeComApiUtil {
             if (respJson.getJSONArray("info").isEmpty()) {
                 return null;
             }
+            Integer groupId = respJson.getJSONArray("info")
+                    .getJSONObject(0)
+                    .getJSONObject("group")
+                    .getInt("groupid");
+            AttendRuleType ruleType = getAttendRuleType(groupId);
+
+            // 若考勤规则是注塑部，走特殊规则处理
+            if (AttendRuleType.IMD.equals(ruleType)) {
+                JSONObject ruleInfo = respJson.getJSONArray("info")
+                        .getJSONObject(0)
+                        .getJSONObject("group")
+                        .getJSONArray("checkindate").getJSONObject(0);
+                JSONArray workdays = ruleInfo.getJSONArray("workdays");
+                int[] workDays = workdays.stream().mapToInt(item -> {
+                    int workDay = (int) item;
+                    return workDay == 0 ? 7 : workDay;
+                }).toArray();
+                EkpAttendRuleBO bo = new EkpAttendRuleBO(AttendRuleType.IMD.getRule(), workDays, AttendRuleType.IMD);
+                RedisUtil.set(cacheKey, bo, 1, TimeUnit.DAYS);
+                return bo;
+            }
             JSONObject ruleInfo = respJson.getJSONArray("info")
                     .getJSONObject(0)
                     .getJSONObject("group")
@@ -162,7 +186,10 @@ public class WeComApiUtil {
             JSONArray workdays = ruleInfo.getJSONArray("workdays");
             JSONArray checkintime = ruleInfo.getJSONArray("checkintime");
 
-            int[] workDays = workdays.stream().mapToInt(item -> (int) item).toArray();
+            int[] workDays = workdays.stream().mapToInt(item -> {
+                int workDay = (int) item;
+                return workDay == 0 ? 7 : workDay;
+            }).toArray();
             String[][] timeRanges = checkintime.stream().map(item -> {
                 JSONObject time = (JSONObject) item;
                 Integer workSec = time.getInt("work_sec");
@@ -176,7 +203,7 @@ public class WeComApiUtil {
                 String timePoint2 = String.format("%02d:%02d", hours, minutes);
                 return new String[]{timePoint1, timePoint2};
             }).toArray(String[][]::new);
-            EkpAttendRuleBO bo = new EkpAttendRuleBO(timeRanges, workDays);
+            EkpAttendRuleBO bo = new EkpAttendRuleBO(timeRanges, workDays, AttendRuleType.FIXED);
             RedisUtil.set(cacheKey, bo, 1, TimeUnit.DAYS);
             return bo;
         } catch (Exception e) {
@@ -187,33 +214,12 @@ public class WeComApiUtil {
     }
 
 
-    public static void test(String weComId, LocalDateTime attendTime) {
-        String accessToken = getAccessToken();
-        long checkinTime = LocalDateTimeUtil.toEpochMilli(attendTime) / 1000;
-        String localTitle = "9楼打卡";
-        String localDetail = "";
-        String notes = "";
-        int deviceType = 1;
-        String deviceDetail = "";
-
-        JSONObject attendParams = new JSONObject();
-        attendParams.set("userid", weComId)
-                .set("checkin_time", checkinTime)
-                .set("location_title", localTitle)
-                .set("location_detail", localDetail)
-                .set("notes", notes)
-                .set("device_type", deviceType)
-                .set("device_detail", deviceDetail);
-        JSONObject body = new JSONObject().set("records", List.of(attendParams));
-        String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/checkin/add_checkin_record?access_token={}", accessToken);
-        String resp = HttpUtil.post(url, JSONUtil.toJsonStr(body));
-        JSONObject respJson = JSONUtil.parseObj(resp);
-        if (respJson.getInt("errcode") != 0) {
-            log.error("添加企微补卡记录失败：{}", respJson.getStr("errmsg"));
-            throw new BizException(ApiMessage.INTERNAL_ERROR);
+    private static AttendRuleType getAttendRuleType(Integer groupId) {
+        // 如果是注塑部考勤组 需要走特殊的逻辑
+        if (CmtLocalConstants.ATTEND_RULE_IMD_WECOM_ID.equals(groupId)) {
+            return AttendRuleType.IMD;
         }
-        log.info("用户:{} 补卡成功，补卡时间:{}", weComId, attendTime);
-
+        return AttendRuleType.FIXED;
     }
 
     /**
@@ -291,6 +297,34 @@ public class WeComApiUtil {
                     vo.setIsReissue("已补卡".equals(json.getStr("notes")) ? GlobalConstants.INT_YES : GlobalConstants.INT_NO);
                     return vo;
                 }).toList();
+    }
+
+    public static void test(String weComId, LocalDateTime attendTime) {
+        String accessToken = getAccessToken();
+        long checkinTime = LocalDateTimeUtil.toEpochMilli(attendTime) / 1000;
+        String localTitle = "9楼打卡";
+        String localDetail = "9楼打卡";
+        String notes = "";
+        int deviceType = 1;
+        String deviceDetail = "考勤机";
+
+        JSONObject attendParams = new JSONObject();
+        attendParams.set("userid", weComId)
+                .set("checkin_time", checkinTime)
+                .set("location_title", localTitle)
+                .set("location_detail", localDetail)
+                .set("device_type", deviceType)
+                .set("device_detail", deviceDetail);
+        JSONObject body = new JSONObject().set("records", List.of(attendParams));
+        String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/checkin/add_checkin_record?access_token={}", accessToken);
+        String resp = HttpUtil.post(url, JSONUtil.toJsonStr(body));
+        JSONObject respJson = JSONUtil.parseObj(resp);
+        if (respJson.getInt("errcode") != 0) {
+            log.error("添加企微补卡记录失败：{}", respJson.getStr("errmsg"));
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        log.info("用户:{} 补卡成功，补卡时间:{}", weComId, attendTime);
+
     }
 
 

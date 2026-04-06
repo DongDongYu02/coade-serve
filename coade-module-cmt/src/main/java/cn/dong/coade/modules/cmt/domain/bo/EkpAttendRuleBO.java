@@ -1,5 +1,6 @@
 package cn.dong.coade.modules.cmt.domain.bo;
 
+import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -19,4 +20,6 @@ public class EkpAttendRuleBO {
      * 出勤日：1=周一 ... 7=周日
      */
     private int[] workDays;
+
+    private AttendRuleType ruleType;
 }

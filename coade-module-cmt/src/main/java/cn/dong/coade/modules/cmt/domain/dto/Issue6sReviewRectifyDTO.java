@@ -1,6 +1,8 @@
 package cn.dong.coade.modules.cmt.domain.dto;
 
+import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.common.domain.dto.AttachmentDTO;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -8,6 +10,7 @@ import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Data
@@ -47,6 +50,11 @@ public class Issue6sReviewRectifyDTO {
 
         @Schema(description = "协助人")
         private String assister;
+
+        @Schema(description = "截止日期")
+        @NotNull
+        @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE,timezone = GlobalConstants.ZoneTime.GMT8)
+        private LocalDate deadline;
 
         @Schema(description = "问题图片")
         @NotEmpty

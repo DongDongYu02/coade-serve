@@ -16,6 +16,8 @@ public interface ICmt6sReviewService extends IService<Cmt6sReview> {
      */
     void create(Cmt6sReviewDTO dto);
 
+    void reAnalyze(String reviewId);
+
     /**
      * 获取分页记录
      */
@@ -35,4 +37,9 @@ public interface ICmt6sReviewService extends IService<Cmt6sReview> {
      * 发起问题整改
      */
     void issueRectify(Issue6sReviewRectifyDTO dto);
+
+    /**
+     * ekp 整改完成回调
+     */
+    void rectifyCompleted(String ekpReviewId);
 }

@@ -3,7 +3,6 @@ package cn.dong.coade.modules.cmt.service;
 import cn.dong.coade.modules.cmt.domain.dto.AttendReissueApplyPassDTO;
 import cn.dong.coade.modules.cmt.domain.dto.ReissueAttendDTO;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendInfoVO;
-import jakarta.validation.constraints.NotBlank;
 
 public interface ICmtAttendService {
 
@@ -11,6 +10,8 @@ public interface ICmtAttendService {
      * 获取用户今日考勤信息
      */
     UserAttendInfoVO getUserTodayAttend();
+
+    UserAttendInfoVO getUserAttendByDate(int year, int month, int day);
 
     /**
      * 获取用户的考勤规则

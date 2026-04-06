@@ -1,21 +1,17 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
-import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.Cmt6SProblemResultBO;
-import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReview;
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReviewProblem;
 import cn.dong.coade.modules.cmt.mapper.Cmt6sReviewProblemMapper;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewProblemService;
 import cn.dong.nexus.common.api.CommonAttachmentService;
 import cn.dong.nexus.common.constants.AttachmentOwnerType;
-import cn.dong.nexus.common.constants.FileMimeType;
 import cn.dong.nexus.common.domain.bo.AttachmentBO;
 import cn.dong.nexus.common.utils.FfmpegUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.baomidou.mybatisplus.extension.toolkit.Db;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -31,7 +27,7 @@ import java.util.UUID;
 @Service
 @RequiredArgsConstructor
 public class Cmt6sReviewProblemServiceImpl extends ServiceImpl<Cmt6sReviewProblemMapper, Cmt6sReviewProblem> implements ICmt6sReviewProblemService {
-    @Value("${nexus.file-upload-path}")
+    @Value("${coade.file-upload-path}")
     private String uploadPath;
     private final CommonAttachmentService attachmentService;
 

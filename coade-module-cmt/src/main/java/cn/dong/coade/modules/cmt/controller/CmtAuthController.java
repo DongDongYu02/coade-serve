@@ -5,21 +5,27 @@ import cn.dong.coade.modules.cmt.service.ICmtUserPermissionService;
 import cn.dong.coade.modules.cmt.service.IWeComAuthService;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
+import cn.dong.nexus.core.config.properties.CoadeProperties;
 import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.dong.nexus.core.security.context.LoginUser;
 import cn.dong.nexus.core.security.vo.LoginUserVO;
 import cn.dong.nexus.infra.util.RedisUtil;
 import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import cn.hutool.json.JSONObject;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/cmt/auth")
@@ -29,6 +35,7 @@ public class CmtAuthController {
     private final IWeComAuthService weComAuthService;
     private final IAuthContext authContext;
     private final ICmtUserPermissionService userPermissionService;
+    private final CoadeProperties coadeProperties;
 
     @GetMapping("/checkLogin")
     @Operation(summary = "检查登录态")
@@ -39,9 +46,30 @@ public class CmtAuthController {
 
     @PostMapping("/wecom-login")
     @Operation(summary = "企微授权登录")
-    public Result<LoginUserVO> weComLogin(@Validated @RequestBody WecomLoginDTO dto) {
-        LoginUserVO result = weComAuthService.login(dto);
+    public Result<LoginUserVO> weComLogin(@Validated @RequestBody WecomLoginDTO dto,HttpServletResponse response) {
+        LoginUserVO result = weComAuthService.login(dto,response);
         return Result.success(result);
+    }
+
+
+    @GetMapping("/wecom")
+    @Operation(summary = "企微授权回调")
+    public void wecom(HttpServletResponse response) throws Exception {
+        try {
+            authContext.checkLogin();
+            response.sendRedirect(coadeProperties.getCmt().getDomain()+"/home");
+        } catch (Exception e) {
+            String callback = URLEncoder.encode(StrUtil.format("{}/wecom/callback", coadeProperties.getCmt().getDomain()), StandardCharsets.UTF_8);
+            String oauthUrl = "https://open.weixin.qq.com/connect/oauth2/authorize"
+                              + "?appid=" + coadeProperties.getCmt().getWeComCorpId()
+                              + "&redirect_uri=" + callback
+                              + "&response_type=code"
+                              + "&scope=snsapi_privateinfo"
+                              + "&state=" + UUID.randomUUID()
+                              + "&agentid=" + coadeProperties.getCmt().getWeComAgentId()
+                              + "#wechat_redirect";
+            response.sendRedirect(oauthUrl);
+        }
     }
 
 
