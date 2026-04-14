@@ -22,6 +22,7 @@ coade:
     - AH0642APAJ6FCC1
     - AH0642APAJCE2A2
     - AH0642APAJ24F80
+    - BM040B4PAJFDD35
 spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
@@ -34,7 +35,7 @@ spring:
       strict: false
       datasource:
         local-mysql:
-          url:  jdbc:mysql://127.0.0.1:3306/nexus?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+          url:  jdbc:mysql://127.0.0.1:3306/coade-serve?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
           username: root
           password: root
           driver-class-name: com.mysql.cj.jdbc.Driver

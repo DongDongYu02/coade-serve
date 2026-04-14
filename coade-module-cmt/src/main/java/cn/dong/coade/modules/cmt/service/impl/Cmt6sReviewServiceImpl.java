@@ -15,7 +15,7 @@ import cn.dong.coade.modules.cmt.mapper.Cmt6sReviewMapper;
 import cn.dong.coade.modules.cmt.service.AI6sService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewProblemService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewService;
-import cn.dong.nexus.common.api.CommonAttachmentService;
+import cn.dong.nexus.common.api.ICommonAttachmentService;
 import cn.dong.nexus.common.constants.ApiConstants;
 import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.constants.GlobalConstants;
@@ -60,7 +60,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6sReview> implements ICmt6sReviewService {
 
-    private final CommonAttachmentService attachmentService;
+    private final ICommonAttachmentService attachmentService;
     private final ICmt6sReviewProblemService cmt6sReviewProblemService;
     private final AI6sService ai6sService;
     private final CoadeProperties coadeProperties;

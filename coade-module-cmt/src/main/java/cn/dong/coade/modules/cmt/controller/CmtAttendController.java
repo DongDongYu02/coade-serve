@@ -3,6 +3,7 @@ package cn.dong.coade.modules.cmt.controller;
 import cn.dong.coade.modules.cmt.domain.dto.AttendReissueApplyPassDTO;
 import cn.dong.coade.modules.cmt.domain.dto.ReissueAttendDTO;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendInfoVO;
+import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Objects;
 
 @RestController
@@ -68,4 +70,14 @@ public class CmtAttendController {
         Integer usedFrequency = attendService.getUsedReissueFrequency(cmtUserId, year, month);
         return Result.success(usedFrequency);
     }
+
+
+    @GetMapping("/abnormal/month/{month}")
+    @Operation(summary = "获取月异常考勤记录")
+    public Result<List<UserAttendRecordVO>> getMonthAbnormal(@PathVariable Integer month) {
+        List<UserAttendRecordVO> result = attendService.getMonthAbnormal(month);
+        return Result.success(result);
+    }
+
+
 }

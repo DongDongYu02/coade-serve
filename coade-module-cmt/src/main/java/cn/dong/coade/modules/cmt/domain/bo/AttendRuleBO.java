@@ -8,7 +8,7 @@ import lombok.NoArgsConstructor;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class EkpAttendRuleBO {
+public class AttendRuleBO {
 
     /**
      * 每段班次：
@@ -22,4 +22,12 @@ public class EkpAttendRuleBO {
     private int[] workDays;
 
     private AttendRuleType ruleType;
+
+    private String weComId;
+
+    public AttendRuleBO(String[][] timeRanges, int[] workDays, AttendRuleType ruleType) {
+        this.ruleType = ruleType;
+        this.workDays = workDays;
+        this.timeRanges = timeRanges;
+    }
 }

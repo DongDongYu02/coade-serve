@@ -1,7 +1,8 @@
 package cn.dong.coade.modules.cmt.utils;
 
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
-import cn.dong.coade.modules.cmt.domain.bo.EkpAttendRuleBO;
+import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
+import cn.dong.coade.modules.cmt.domain.bo.WeComCardMessageBO;
 import cn.dong.coade.modules.cmt.domain.dto.WeComUserInfoDTO;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
@@ -20,7 +21,9 @@ import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import lombok.extern.slf4j.Slf4j;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -109,6 +112,19 @@ public class WeComApiUtil {
         return CollUtil.distinct(checkinRecords);
     }
 
+    public static List<UserAttendRecordVO> getUserAttendByMonth(String weComId, int year, int month) {
+        // 开始时间
+        LocalDateTime begin = LocalDateTime.of(year, month, 1, 0, 0, 0);
+        // 结束时间
+        LocalDateTime end = begin.plusMonths(1).minusSeconds(1);
+        // 打卡记录
+        List<UserAttendRecordVO> checkinRecords = new ArrayList<>(getCheckinRecords(weComId, begin, end));
+        // 补卡后的打卡记录
+        List<UserAttendRecordVO> reissueRecords = getReissueRecords(weComId, begin, end);
+        checkinRecords.addAll(reissueRecords);
+        return CollUtil.distinct(checkinRecords);
+    }
+
     public static void addUserAttend(String weComId, LocalDateTime attendTime) {
         String accessToken = getAccessToken();
         long checkinTime = LocalDateTimeUtil.toEpochMilli(attendTime) / 1000;
@@ -137,12 +153,80 @@ public class WeComApiUtil {
 
     }
 
-    public static EkpAttendRuleBO getUserAttendRule(String weComId, LocalDateTime attendDate) {
-        String cacheKey = StrUtil.format(ATTEND_RULE_CACHE_KEY_PREFIX + ":{}:{}", weComId, LocalDateTimeUtil.toEpochMilli(attendDate));
-        EkpAttendRuleBO cache = RedisUtil.get(cacheKey, EkpAttendRuleBO.class);
-        if (Objects.nonNull(cache)) {
-            return cache;
+    public static List<AttendRuleBO> getAllUserAttendRules(List<String> weComIds, LocalDate attendDate) {
+        List<AttendRuleBO> result = new ArrayList<>();
+        String accessToken = getAccessToken();
+        long datetime = LocalDateTimeUtil.toEpochMilli(attendDate) / 1000;
+        String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/checkin/getcheckinoption?access_token={}", accessToken);
+        JSONObject body = new JSONObject();
+        for (List<String> item : CollUtil.split(weComIds, 99)) {
+            body.set("useridlist", item).set("datetime", datetime);
+            try {
+                String resp = HttpUtil.post(url, JSONUtil.toJsonStr(body));
+                JSONObject respJson = JSONUtil.parseObj(resp);
+                if (respJson.getInt("errcode") != 0) {
+                    log.error("获取职员考勤规则失败：{}", respJson.getStr("errmsg"));
+                }
+                if (respJson.getJSONArray("info").isEmpty()) {
+                    continue;
+                }
+                // 遍历所有职员的考勤规则
+                for (Object infoObj : respJson.getJSONArray("info")) {
+
+                    JSONObject ruleInfo = (JSONObject) infoObj;
+                    Integer groupId = ruleInfo.getJSONObject("group")
+                            .getInt("groupid");
+                    AttendRuleType ruleType = getAttendRuleType(groupId);
+                    // 打卡日期
+                    JSONObject checkindate = ruleInfo
+                            .getJSONObject("group")
+                            .getJSONArray("checkindate")
+                            .getJSONObject(0);
+                    // 工作日
+                    JSONArray workdays = checkindate.getJSONArray("workdays");
+                    int[] workDays = workdays.stream().mapToInt(day -> {
+                        int workDay = (int) day;
+                        return workDay == 0 ? 7 : workDay;
+                    }).toArray();
+                    // 若考勤规则是注塑部，走特殊规则处理
+                    if (AttendRuleType.IMD.equals(ruleType)) {
+                        AttendRuleBO bo = new AttendRuleBO(AttendRuleType.IMD.getRule(), workDays, AttendRuleType.IMD, ruleInfo.getStr("userid"));
+                        result.add(bo);
+                        continue;
+                    }
+                    // 打卡点
+                    JSONArray checkintime = checkindate.getJSONArray("checkintime");
+                    if (checkintime.isEmpty()) {
+                        AttendRuleBO bo = new AttendRuleBO(new String[][]{}, workDays, AttendRuleType.EMPTY, ruleInfo.getStr("userid"));
+                        result.add(bo);
+                        continue;
+                    }
+
+                    String[][] timeRanges = checkintime.stream().map(it -> {
+                        JSONObject time = (JSONObject) it;
+                        Integer workSec = time.getInt("work_sec");
+                        Integer offWorkSec = time.getInt("off_work_sec");
+
+                        int hours = workSec / 3600;
+                        int minutes = (workSec % 3600) / 60;
+                        String timePoint1 = String.format("%02d:%02d", hours, minutes);
+                        hours = offWorkSec / 3600;
+                        minutes = (offWorkSec % 3600) / 60;
+                        String timePoint2 = String.format("%02d:%02d", hours, minutes);
+                        return new String[]{timePoint1, timePoint2};
+                    }).toArray(String[][]::new);
+                    AttendRuleBO bo = new AttendRuleBO(timeRanges, workDays, AttendRuleType.FIXED, ruleInfo.getStr("userid"));
+                    result.add(bo);
+                }
+            } catch (Exception e) {
+                log.error("获取所有职员{}的考勤规则失败：{}", attendDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd")), e.getMessage());
+                break;
+            }
         }
+        return result;
+    }
+
+    public static AttendRuleBO getUserAttendRule(String weComId, LocalDateTime attendDate) {
         String accessToken = getAccessToken();
         long datetime = LocalDateTimeUtil.toEpochMilli(attendDate) / 1000;
         String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/checkin/getcheckinoption?access_token={}", accessToken);
@@ -175,10 +259,10 @@ public class WeComApiUtil {
                     int workDay = (int) item;
                     return workDay == 0 ? 7 : workDay;
                 }).toArray();
-                EkpAttendRuleBO bo = new EkpAttendRuleBO(AttendRuleType.IMD.getRule(), workDays, AttendRuleType.IMD);
-                RedisUtil.set(cacheKey, bo, 1, TimeUnit.DAYS);
+                AttendRuleBO bo = new AttendRuleBO(AttendRuleType.IMD.getRule(), workDays, AttendRuleType.IMD);
                 return bo;
             }
+
             JSONObject ruleInfo = respJson.getJSONArray("info")
                     .getJSONObject(0)
                     .getJSONObject("group")
@@ -190,6 +274,9 @@ public class WeComApiUtil {
                 int workDay = (int) item;
                 return workDay == 0 ? 7 : workDay;
             }).toArray();
+            if (checkintime.isEmpty()) {
+                return new AttendRuleBO(new String[][]{}, workDays, AttendRuleType.EMPTY, ruleInfo.getStr("userid"));
+            }
             String[][] timeRanges = checkintime.stream().map(item -> {
                 JSONObject time = (JSONObject) item;
                 Integer workSec = time.getInt("work_sec");
@@ -203,9 +290,7 @@ public class WeComApiUtil {
                 String timePoint2 = String.format("%02d:%02d", hours, minutes);
                 return new String[]{timePoint1, timePoint2};
             }).toArray(String[][]::new);
-            EkpAttendRuleBO bo = new EkpAttendRuleBO(timeRanges, workDays, AttendRuleType.FIXED);
-            RedisUtil.set(cacheKey, bo, 1, TimeUnit.DAYS);
-            return bo;
+            return new AttendRuleBO(timeRanges, workDays, AttendRuleType.FIXED);
         } catch (Exception e) {
             log.error("获取职员考勤规则失败：{}", e.getMessage());
             throw new BizException(ApiMessage.INTERNAL_ERROR);
@@ -325,6 +410,18 @@ public class WeComApiUtil {
         }
         log.info("用户:{} 补卡成功，补卡时间:{}", weComId, attendTime);
 
+    }
+
+
+    public static void sendCardMessageToUser(WeComCardMessageBO message) {
+        String accessToken = getAccessToken();
+
+        String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token={}", accessToken);
+        String resp = HttpUtil.post(url, JSONUtil.toJsonStr(message));
+        JSONObject respJson = JSONUtil.parseObj(resp);
+        if (respJson.getInt("errcode") != 0) {
+            log.error("发送企微消息失败：{}", respJson.getStr("errmsg"));
+        }
     }
 
 

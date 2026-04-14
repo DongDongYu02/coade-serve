@@ -2,7 +2,7 @@ package cn.dong.coade.modules.cmt.controller;
 
 import cn.dong.coade.modules.cmt.domain.dto.WecomLoginDTO;
 import cn.dong.coade.modules.cmt.service.ICmtUserPermissionService;
-import cn.dong.coade.modules.cmt.service.IWeComAuthService;
+import cn.dong.coade.modules.cmt.service.IWeComService;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
 import cn.dong.nexus.core.config.properties.CoadeProperties;
@@ -32,7 +32,7 @@ import java.util.UUID;
 @Tag(name = "CMT授权登录")
 @RequiredArgsConstructor
 public class CmtAuthController {
-    private final IWeComAuthService weComAuthService;
+    private final IWeComService weComAuthService;
     private final IAuthContext authContext;
     private final ICmtUserPermissionService userPermissionService;
     private final CoadeProperties coadeProperties;

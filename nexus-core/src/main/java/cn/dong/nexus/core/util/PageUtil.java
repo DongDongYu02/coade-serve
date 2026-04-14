@@ -4,6 +4,7 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.bean.copier.CopyOptions;
 import cn.hutool.core.util.ReflectUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 
 /**
  * MP分页对象工具类
@@ -11,7 +12,9 @@ import com.baomidou.mybatisplus.core.metadata.IPage;
  * @author Dong
  * @date 11:14 2023/11/8
  **/
-public class PageUtil {
+public class PageUtil{
+
+    private static final IPage<?> EMPTY_PAGE = new Page<>();
 
     /**
      * 分页对象转换
@@ -33,5 +36,9 @@ public class PageUtil {
         });
     }
 
+
+    public static <T> IPage<T> emptyPage() {
+        return (IPage<T>) EMPTY_PAGE;
+    }
 
 }

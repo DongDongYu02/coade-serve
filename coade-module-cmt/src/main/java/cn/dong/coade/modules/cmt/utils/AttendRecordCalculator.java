@@ -1,8 +1,8 @@
 
 package cn.dong.coade.modules.cmt.utils;
 
+import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
-import cn.dong.coade.modules.cmt.domain.bo.EkpAttendRuleBO;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
 import cn.dong.coade.modules.cmt.domain.vo.UserLeaveAttendVO;
@@ -64,7 +64,7 @@ public class AttendRecordCalculator {
      */
     public List<UserAttendRecordVO> calculate(LocalDate attendDate,
                                               List<UserAttendRecordVO> actualRecords,
-                                              EkpAttendRuleBO rule,
+                                              AttendRuleBO rule,
                                               List<EkpAttendBusinessBO> leaveInfos,
                                               List<EkpAttendBusinessBO> outInfos,
                                               List<EkpAttendBusinessBO> tripInfos) {
@@ -99,7 +99,7 @@ public class AttendRecordCalculator {
      * 计算今日考勤
      */
     public List<UserAttendRecordVO> calculateToday(List<UserAttendRecordVO> actualRecords,
-                                                   EkpAttendRuleBO rule,
+                                                   AttendRuleBO rule,
                                                    List<EkpAttendBusinessBO> leaveInfos,
                                                    List<EkpAttendBusinessBO> outInfos,
                                                    List<EkpAttendBusinessBO> tripInfos) {
@@ -110,7 +110,7 @@ public class AttendRecordCalculator {
      * 解析考勤规则时间段
      * 优先使用 BO 上显式配置的 timeRanges；若为空，则回退到 ruleType 自带规则
      */
-    private String[][] resolveTimeRanges(EkpAttendRuleBO rule) {
+    private String[][] resolveTimeRanges(AttendRuleBO rule) {
         if (rule == null) {
             return null;
         }
@@ -141,6 +141,12 @@ public class AttendRecordCalculator {
 
     /**
      * IMD 注塑部规则计算
+     *
+     * 规则补充：
+     * 1. 缺卡判定延后到“下一个规则打卡点”再触发，而不是当前窗口一结束就立刻缺卡
+     * 2. 但 actual punch 的命中范围仍按 IMD 原规则执行：
+     *    - 单点窗口：可在对应基础窗口内命中
+     *    - 范围窗口：必须在范围内命中
      */
     private List<UserAttendRecordVO> calculateImd(LocalDate attendDate,
                                                   String[][] timeRanges,
@@ -223,10 +229,14 @@ public class AttendRecordCalculator {
                 continue;
             }
 
-            // 5) 无打卡：今日且窗口尚未结束 -> 待打卡；否则缺卡
+            // 5) 无打卡：
+            //    今日且“下一个规则点”未到 -> 待打卡
+            //    到了下一个规则点（或非今日） -> 缺卡
             vo.setCheckinTime(rangeStart.format(DATE_TIME_FMT));
             vo.setLocation("-");
-            if (isToday && hasFutureSlot(effectiveSlots, now)) {
+
+            LocalDateTime judgeDeadline = resolveImdJudgeDeadline(attendDate, timeRanges, i);
+            if (isToday && now.isBefore(judgeDeadline)) {
                 vo.setStatus("待打卡");
             } else {
                 vo.setStatus("缺卡");
@@ -511,10 +521,10 @@ public class AttendRecordCalculator {
      */
     private boolean isLeaveAdjustedOnDutyPoint(AttendPoint point) {
         return point != null
-               && point.getType() == PunchType.ON_DUTY
-               && StrUtil.isBlank(point.getFixedStatus())
-               && point.getMatchStartLimit() != null
-               && point.getExpectedTime().equals(point.getMatchStartLimit());
+                && point.getType() == PunchType.ON_DUTY
+                && StrUtil.isBlank(point.getFixedStatus())
+                && point.getMatchStartLimit() != null
+                && point.getExpectedTime().equals(point.getMatchStartLimit());
     }
 
     private void fillBizStatusVo(UserAttendRecordVO vo, LocalDateTime ruleTime, String status) {
@@ -635,6 +645,10 @@ public class AttendRecordCalculator {
 
     /**
      * 匹配规则点与实际打卡
+     *
+     * 新规则：
+     * 1. 当前规则点的候选打卡范围一直延续到“下一个规则点”
+     * 2. 当前规则点是否判缺卡，也延后到“下一个规则点”再触发
      */
     private List<UserAttendRecordVO> matchPoints(List<AttendPoint> points,
                                                  List<ActualPunch> punches,
@@ -669,8 +683,8 @@ public class AttendRecordCalculator {
                 // 请假顺延出来的上班点，允许员工在业务结束前提前回岗打卡
                 // 因此这里不再把 matchStartLimit 作为硬性的最早打卡限制。
                 if (current.getMatchStartLimit() != null
-                    && punch.getTime().isBefore(current.getMatchStartLimit())
-                    && !isLeaveAdjustedOnDutyPoint(current)) {
+                        && punch.getTime().isBefore(current.getMatchStartLimit())
+                        && !isLeaveAdjustedOnDutyPoint(current)) {
                     continue;
                 }
                 if (current.getMatchEndLimit() != null && punch.getTime().isAfter(current.getMatchEndLimit())) {
@@ -701,8 +715,10 @@ public class AttendRecordCalculator {
                 continue;
             }
 
-            // 今天且规则点未到，只有在“还没匹配到实际打卡”时才显示待打卡
-            if (isToday && current.getExpectedTime().isAfter(now) && matched == null) {
+            LocalDateTime judgeDeadline = resolveJudgeDeadline(points, i, attendDate);
+
+            // 今日且“下一个规则点”未到，只有在还没匹配到实际打卡时才显示待打卡
+            if (isToday && matched == null && now.isBefore(judgeDeadline)) {
                 vo.setCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
                 vo.setRuleCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
                 vo.setLocation("-");
@@ -736,27 +752,15 @@ public class AttendRecordCalculator {
 
     /**
      * 计算当前规则点的匹配开始边界
+     *
+     * 现在统一使用“上一个规则点时间”作为开始边界，
+     * 这样当前规则点可以持续接收直到下一个规则点之前的打卡。
      */
     private LocalDateTime resolveStartBoundary(List<AttendPoint> points, int index, LocalDate attendDate) {
         if (index == 0) {
             return attendDate.atStartOfDay();
         }
-
-        AttendPoint prev = points.get(index - 1);
-        AttendPoint current = points.get(index);
-
-        // 中间下班点 -> 上班点 共享窗口
-        if (isOverlapPair(prev, current)) {
-            return prev.getExpectedTime();
-        }
-
-        // 同一班次 上班点 -> 下班点
-        // 下班点从本班次上班时间开始匹配，这样 14:30 才能匹配 17:30 为早退
-        if (isSessionPair(prev, current)) {
-            return prev.getExpectedTime();
-        }
-
-        return midpoint(prev.getExpectedTime(), current.getExpectedTime());
+        return points.get(index - 1).getExpectedTime();
     }
 
     /**
@@ -768,29 +772,50 @@ public class AttendRecordCalculator {
         }
 
         return left.getType() == PunchType.ON_DUTY
-               && right.getType() == PunchType.OFF_DUTY
-               && StrUtil.isBlank(left.getFixedStatus())
-               && StrUtil.isBlank(right.getFixedStatus());
+                && right.getType() == PunchType.OFF_DUTY
+                && StrUtil.isBlank(left.getFixedStatus())
+                && StrUtil.isBlank(right.getFixedStatus());
     }
 
     /**
      * 计算当前规则点的匹配结束边界
+     *
+     * 现在统一使用“下一个规则点时间”作为结束边界（右开区间），
+     * 不再用中点截断。
      */
     private LocalDateTime resolveEndBoundary(List<AttendPoint> points, int index, LocalDate attendDate) {
         if (index == points.size() - 1) {
             return attendDate.plusDays(1).atStartOfDay();
         }
-
-        AttendPoint current = points.get(index);
-        AttendPoint next = points.get(index + 1);
-
-        // 中间下班点 -> 上班点 共享窗口：当前下班点匹配到后一个上班点时间结束
-        if (isOverlapPair(current, next)) {
-            return next.getExpectedTime();
-        }
-
-        return midpoint(current.getExpectedTime(), next.getExpectedTime());
+        return points.get(index + 1).getExpectedTime();
     }
+
+    /**
+     * 当前规则点何时开始判缺卡：
+     * - 有下一个规则点：到下一个规则点再判
+     * - 没有下一个规则点：到次日 00:00 再判
+     */
+    private LocalDateTime resolveJudgeDeadline(List<AttendPoint> points, int index, LocalDate attendDate) {
+        if (index < points.size() - 1) {
+            return points.get(index + 1).getExpectedTime();
+        }
+        return attendDate.plusDays(1).atStartOfDay();
+    }
+
+    /**
+     * IMD 缺卡判定时间：
+     * - 有下一个 timeRange：到下一个 timeRange 的开始时间再判
+     * - 没有下一个 timeRange：到次日 00:00 再判
+     */
+    private LocalDateTime resolveImdJudgeDeadline(LocalDate attendDate,
+                                                  String[][] timeRanges,
+                                                  int index) {
+        if (index < timeRanges.length - 1) {
+            return attendDate.atTime(LocalTime.parse(timeRanges[index + 1][0], TIME_FMT));
+        }
+        return attendDate.plusDays(1).atStartOfDay();
+    }
+
 
     /**
      * 是否为允许重叠匹配的中间点：下班点 -> 上班点
@@ -801,12 +826,12 @@ public class AttendRecordCalculator {
         }
 
         return left.getType() == PunchType.OFF_DUTY
-               && right.getType() == PunchType.ON_DUTY
-               && StrUtil.isBlank(left.getFixedStatus())
-               && StrUtil.isBlank(right.getFixedStatus())
-               // 业务顺延后的上班点，不参与中间重叠匹配
-               && right.getMatchStartLimit() == null
-               && !right.getExpectedTime().isBefore(left.getExpectedTime());
+                && right.getType() == PunchType.ON_DUTY
+                && StrUtil.isBlank(left.getFixedStatus())
+                && StrUtil.isBlank(right.getFixedStatus())
+                // 业务顺延后的上班点，不参与中间重叠匹配
+                && right.getMatchStartLimit() == null
+                && !right.getExpectedTime().isBefore(left.getExpectedTime());
     }
 
     /**
@@ -861,7 +886,7 @@ public class AttendRecordCalculator {
                     .filter(idx -> {
                         LocalDateTime time = punches.get(idx).getTime();
                         return !time.isBefore(current.getExpectedTime())
-                               && !time.isAfter(next.getExpectedTime());
+                                && !time.isAfter(next.getExpectedTime());
                     })
                     .collect(Collectors.toList());
 
@@ -881,7 +906,7 @@ public class AttendRecordCalculator {
                     .filter(idx -> {
                         LocalDateTime time = punches.get(idx).getTime();
                         return !time.isBefore(prev.getExpectedTime())
-                               && !time.isAfter(current.getExpectedTime());
+                                && !time.isAfter(current.getExpectedTime());
                     })
                     .collect(Collectors.toList());
 
@@ -889,8 +914,11 @@ public class AttendRecordCalculator {
                 return overlapIndexes.get(overlapIndexes.size() - 1);
             }
 
-            // 共享区间没有剩余打卡，不要吃掉后面班次的卡
-            return null;
+            // 共享区间没有打卡时，仍要优先满足“当前班次的上班点”。
+            // 例如 11:30 下班、12:30 上班、17:30 下班，若只有 15:00 一次打卡，
+            // 这条卡应先认定为 12:30 上班迟到，而不是被 17:30 下班点吃掉判成早退。
+            // 因此这里回退取当前候选集中的第一条，让“同一班次先上班、后下班”。
+            return candidateIndexes.get(0);
         }
 
         // 普通规则
@@ -907,7 +935,7 @@ public class AttendRecordCalculator {
             // 业务覆盖班次开始后，顺延出来的上班点
             // 业务结束后的首次回岗打卡按正常处理
             if (point.getMatchStartLimit() != null
-                && point.getExpectedTime().equals(point.getMatchStartLimit())) {
+                    && point.getExpectedTime().equals(point.getMatchStartLimit())) {
                 return "正常";
             }
             return actualTime.isAfter(point.getExpectedTime()) ? "迟到" : "正常";

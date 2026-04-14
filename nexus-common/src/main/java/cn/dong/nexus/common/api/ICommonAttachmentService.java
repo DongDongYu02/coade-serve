@@ -9,7 +9,7 @@ import java.util.List;
 /**
  * 跨模块公共附件服务接口
  */
-public interface CommonAttachmentService {
+public interface ICommonAttachmentService {
 
     /**
      * 保存附件所属者关联

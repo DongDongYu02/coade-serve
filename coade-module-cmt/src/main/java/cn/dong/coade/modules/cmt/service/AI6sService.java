@@ -3,7 +3,7 @@ package cn.dong.coade.modules.cmt.service;
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.Cmt6SProblemResultBO;
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReview;
-import cn.dong.nexus.common.api.CommonAttachmentService;
+import cn.dong.nexus.common.api.ICommonAttachmentService;
 import cn.dong.nexus.common.constants.FileMimeType;
 import cn.dong.nexus.common.domain.bo.AttachmentBO;
 import cn.hutool.core.io.resource.ResourceUtil;
@@ -31,7 +31,7 @@ import java.util.List;
 public class AI6sService {
 
     private final ChatModel chatModel;
-    private final CommonAttachmentService attachmentService;
+    private final ICommonAttachmentService attachmentService;
     private final ICmt6sReviewProblemService cmt6sReviewProblemService;
 
     @Value("${coade.file-access-url}")

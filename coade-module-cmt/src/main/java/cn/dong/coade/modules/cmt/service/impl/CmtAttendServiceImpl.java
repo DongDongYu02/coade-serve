@@ -1,17 +1,19 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
+import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
-import cn.dong.coade.modules.cmt.domain.bo.EkpAttendRuleBO;
 import cn.dong.coade.modules.cmt.domain.dto.AttendReissueApplyPassDTO;
 import cn.dong.coade.modules.cmt.domain.dto.ReissueAttendDTO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtAttendReissue;
 import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
+import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendInfoVO;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
 import cn.dong.coade.modules.cmt.domain.vo.UserLeaveAttendVO;
 import cn.dong.coade.modules.cmt.mapper.CmtAttendMapper;
 import cn.dong.coade.modules.cmt.mapper.CmtUserMapper;
 import cn.dong.coade.modules.cmt.service.ICmtAttendReissueService;
+import cn.dong.coade.modules.cmt.service.ICmtAttendRuleService;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
 import cn.dong.coade.modules.cmt.utils.AttendRecordCalculator;
 import cn.dong.coade.modules.cmt.utils.WeComApiUtil;
@@ -23,6 +25,7 @@ import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.dong.nexus.core.security.context.LoginUser;
 import cn.dong.nexus.infra.util.DynamicDataSourceUtil;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
@@ -50,10 +53,8 @@ import java.io.File;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.time.LocalTime;
+import java.util.*;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -66,6 +67,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     private final AttendRecordCalculator attendRecordCalculator;
     private final ICmtAttendReissueService attendReissueService;
     private final RestTemplate restTemplate;
+    private final ICmtAttendRuleService attendRuleService;
 
     private static final String ATTEND_REISSUE_EKP_REVIEW_TEMPLATE_ID = "16be9d5fc79ef23244153e6457b9483a";
 
@@ -82,6 +84,10 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
     public UserAttendInfoVO getUserAttendByDate(int year, int month, int day) {
         long start = System.currentTimeMillis();
+        // 仅支持查询2026年4月之后的考勤
+        if (LocalDate.of(year, month, day).isBefore(LocalDate.of(2026, 4, 1))) {
+            return new UserAttendInfoVO("无需打卡", List.of(), new UserLeaveAttendVO());
+        }
         LoginUser loginUser = authContext.getLoginUserOrThrow();
         String weComId = loginUser.getExtInfo().get("weComId").toString();
         String ekpId = loginUser.getExtInfo().get("ekpId").toString();
@@ -89,10 +95,27 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         LocalDateTime todayBegin = LocalDateTimeUtil.beginOfDay(now);
         LocalDateTime todayEnd = LocalDateTimeUtil.endOfDay(now);
         List<UserAttendRecordVO> userAttend = WeComApiUtil.getUserAttend(weComId, todayBegin, todayEnd);
+        // 获取用户打卡规则
+        AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, now);
+//        String[][] range = {{"08:00", "11:30"}, {"12:30", "17:30"}};
+//        EkpAttendRuleBO rule =   new EkpAttendRuleBO(range,new int[]{1,2,3,4,5,6},AttendRuleType.FIXED);
+        if (Objects.isNull(rule)) {
+            userAttend.forEach(item -> item.setStatus("正常"));
+            return new UserAttendInfoVO("无需打卡", userAttend, new UserLeaveAttendVO());
+        }
+
+        String ruleInfo = this.buildRuleInfoText(rule);
         // 未关联蓝凌的用户
         if (GlobalConstants.UserIdentity.SPECIAL.equals(loginUser.getIdentity())) {
-            userAttend.forEach(item -> item.setStatus("正常"));
-            return new UserAttendInfoVO("暂无考勤规则", userAttend, new UserLeaveAttendVO());
+            userAttend = attendRecordCalculator.calculate(
+                    now,
+                    userAttend,
+                    rule,
+                    List.of(),
+                    List.of(),
+                    List.of()
+            );
+            return new UserAttendInfoVO(ruleInfo, userAttend, new UserLeaveAttendVO());
         }
 
         // 查询用户今天的补卡记录
@@ -117,29 +140,12 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 // 如果有补卡记录，并且审批通过了，则过滤掉这条打卡记录
                 return !GlobalConstants.AttendReissueApprovalResult.APPROVED.equals(approveStatus);
             }).toList();
-
         }
-
-        // 获取用户打卡规则
-
-        EkpAttendRuleBO rule = WeComApiUtil.getUserAttendRule(weComId, todayBegin);
-//        String[][] range = {{"08:00", "11:30"}, {"12:30", "17:30"}};
-//        EkpAttendRuleBO rule =   new EkpAttendRuleBO(range,new int[]{1,2,3,4,5,6},AttendRuleType.FIXED);
-
-
-        if (Objects.isNull(rule)) {
-            userAttend.forEach(item -> item.setStatus("正常"));
-            return new UserAttendInfoVO("无需打卡", userAttend, new UserLeaveAttendVO());
-        }
-
-        String ruleInfo = this.buildRuleInfoText(rule);
-
-
         // 请假记录
         List<EkpAttendBusinessBO> leaveInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.LEAVE);
 //        EkpAttendBusinessBO r = new EkpAttendBusinessBO();
-//        r.setStartTime(LocalDateTime.of(2026, 3, 30, 8, 0));
-//        r.setEndTime(LocalDateTime.of(2026, 3, 30, 11, 55));
+//        r.setStartTime(LocalDateTime.of(2026, 4, 8, 15, 0));
+//        r.setEndTime(LocalDateTime.of(2026, 4, 8, 17, 30));
 //        List<EkpAttendBusinessBO> leaveInfo = List.of(r);
         // 外出记录
         List<EkpAttendBusinessBO> outInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.OUTGOING);
@@ -174,7 +180,235 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     }
 
-    private String buildRuleInfoText(EkpAttendRuleBO rule) {
+    @Override
+    public List<UserAttendRecordVO> getMonthAbnormal(Integer month) {
+        LoginUser loginUser = authContext.getLoginUserOrThrow();
+        int year = LocalDate.now().getYear();
+
+        LocalDate monthStart = LocalDate.of(year, month, 1);
+        LocalDate today = LocalDate.now();
+
+        if (monthStart.isBefore(LocalDate.of(2026, 4, 1))) {
+            return List.of();
+        }
+
+        // 未来月份直接返回空，避免把未来工作日全算成缺卡
+        LocalDate currentMonthStart = today.withDayOfMonth(1);
+        if (monthStart.isAfter(currentMonthStart)) {
+            return List.of();
+        }
+
+        // 当前月只统计到今天，避免未来日期被误判为异常
+        LocalDate queryEndDate = monthStart.getYear() == today.getYear()
+                && monthStart.getMonthValue() == today.getMonthValue()
+                ? today
+                : monthStart.plusMonths(1).minusDays(1);
+
+        LocalDateTime begin = monthStart.atStartOfDay();
+        LocalDateTime end = LocalDateTime.of(queryEndDate, LocalTime.of(23, 59, 59));
+
+        String weComId = loginUser.getExtInfo().get("weComId").toString();
+
+        // 用户该月所有原始打卡
+        List<UserAttendRecordVO> records = WeComApiUtil.getUserAttend(weComId, begin, end);
+
+        // 用户该月每日的考勤规则 map，key = day
+        Map<Integer, AttendRuleBO> dayRuleMap = attendRuleService.getUserAttendRuleByMonth(weComId, year, month);
+        if (CollUtil.isEmpty(dayRuleMap)) {
+            return List.of();
+        }
+
+        List<EkpAttendBusinessBO> leaveInfo = List.of();
+        List<EkpAttendBusinessBO> tripInfo = List.of();
+        List<EkpAttendBusinessBO> outInfo = List.of();
+        List<CmtAttendReissue> attendReissues = List.of();
+
+        // 未关联蓝凌的用户，沿用“当天考勤”的思路：不查业务记录和补卡记录
+        if (!GlobalConstants.UserIdentity.SPECIAL.equals(loginUser.getIdentity())) {
+            String ekpId = Objects.toString(loginUser.getExtInfo().get("ekpId"), null);
+            if (StrUtil.isNotBlank(ekpId)) {
+                CmtAttendServiceImpl _this = SpringUtil.getBean(this.getClass());
+
+                leaveInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveType.LEAVE);
+                tripInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveType.BIZ_TRIP);
+                outInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveType.OUTGOING);
+
+                attendReissues = attendReissueService.getUserReissueRecordsByTimeRange(ekpId, begin, end);
+            }
+        }
+
+        Map<LocalDate, List<UserAttendRecordVO>> dayRecordMap = CollUtil.emptyIfNull(records).stream()
+                .filter(item -> StrUtil.isNotBlank(item.getCheckinTime()))
+                .collect(Collectors.groupingBy(
+                        item -> LocalDateTimeUtil.parse(item.getCheckinTime(), "yyyy-MM-dd HH:mm").toLocalDate()
+                ));
+
+        List<UserAttendRecordVO> result = new ArrayList<>();
+
+        for (LocalDate day = monthStart; !day.isAfter(queryEndDate); day = day.plusDays(1)) {
+            AttendRuleBO rule = dayRuleMap.get(day.getDayOfMonth());
+
+            if (Objects.isNull(rule)) {
+                rule = attendRuleService.getUserAttendRule(weComId, day);
+                if (Objects.isNull(rule) || AttendRuleType.EMPTY.equals(rule.getRuleType())) {
+                    continue;
+                }
+            }
+
+            List<UserAttendRecordVO> dayActualRecords = new ArrayList<>(
+                    dayRecordMap.getOrDefault(day, Collections.emptyList())
+            );
+
+            List<CmtAttendReissue> dayReissues = filterReissuesByDay(attendReissues, day);
+
+            // 先过滤掉“补卡审批通过后生成的原始打卡”
+            dayActualRecords = removeApprovedReissueGeneratedPunch(dayActualRecords, dayReissues);
+
+            List<EkpAttendBusinessBO> dayLeaveInfo = filterBizByDay(leaveInfo, day);
+            List<EkpAttendBusinessBO> dayTripInfo = filterBizByDay(tripInfo, day);
+            List<EkpAttendBusinessBO> dayOutInfo = filterBizByDay(outInfo, day);
+
+            List<UserAttendRecordVO> dayCalculated = attendRecordCalculator.calculate(
+                    day,
+                    dayActualRecords,
+                    rule,
+                    dayLeaveInfo,
+                    dayOutInfo,
+                    dayTripInfo
+            );
+
+            // 再把补卡审批状态回填到规则打卡点
+            applyReissueStatus(dayCalculated, dayReissues);
+
+            dayCalculated.stream()
+                    .filter(this::isAbnormalAttendRecord)
+                    .forEach(result::add);
+        }
+
+        result.sort(Comparator.comparing(this::resolveSortTime));
+
+        return result;
+    }
+
+    private List<EkpAttendBusinessBO> filterBizByDay(List<EkpAttendBusinessBO> source, LocalDate day) {
+        if (CollUtil.isEmpty(source)) {
+            return List.of();
+        }
+
+        LocalDateTime dayBegin = day.atStartOfDay();
+        LocalDateTime dayEnd = LocalDateTime.of(day, LocalTime.of(23, 59, 59));
+
+        return source.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getStartTime() != null && item.getEndTime() != null)
+                // 与当天有交集即可
+                .filter(item -> !item.getEndTime().isBefore(dayBegin) && !item.getStartTime().isAfter(dayEnd))
+                .collect(Collectors.toList());
+    }
+
+    private List<CmtAttendReissue> filterReissuesByDay(List<CmtAttendReissue> source, LocalDate day) {
+        if (CollUtil.isEmpty(source)) {
+            return List.of();
+        }
+
+        return source.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getRuleCheckinTime() != null)
+                .filter(item -> item.getRuleCheckinTime().toLocalDate().equals(day))
+                .collect(Collectors.toList());
+    }
+
+    private List<UserAttendRecordVO> removeApprovedReissueGeneratedPunch(List<UserAttendRecordVO> userAttend,
+                                                                         List<CmtAttendReissue> attendReissues) {
+        if (CollUtil.isEmpty(userAttend) || CollUtil.isEmpty(attendReissues)) {
+            return userAttend;
+        }
+
+        Map<LocalDateTime, Integer> reissueRecordsMap = attendReissues.stream()
+                .filter(item -> item.getCheckinTime() != null)
+                .collect(Collectors.toMap(
+                        CmtAttendReissue::getCheckinTime,
+                        CmtAttendReissue::getIsApproved,
+                        (a, b) -> a
+                ));
+
+        return userAttend.stream()
+                .filter(item -> {
+                    if (Objects.equals(item.getIsReissue(), 1)) {
+                        return true;
+                    }
+                    if (StrUtil.isBlank(item.getCheckinTime())) {
+                        return true;
+                    }
+
+                    Integer approveStatus = reissueRecordsMap.get(
+                            LocalDateTimeUtil.parse(item.getCheckinTime(), "yyyy-MM-dd HH:mm")
+                    );
+
+                    if (Objects.isNull(approveStatus)) {
+                        return true;
+                    }
+
+                    return !GlobalConstants.AttendReissueApprovalResult.APPROVED.equals(approveStatus);
+                })
+                .collect(Collectors.toList());
+    }
+
+    private void applyReissueStatus(List<UserAttendRecordVO> records, List<CmtAttendReissue> attendReissues) {
+        if (CollUtil.isEmpty(records) || CollUtil.isEmpty(attendReissues)) {
+            return;
+        }
+
+        Map<LocalDateTime, Integer> reissueRecordsMap = attendReissues.stream()
+                .filter(item -> item.getRuleCheckinTime() != null)
+                .collect(Collectors.toMap(
+                        CmtAttendReissue::getRuleCheckinTime,
+                        CmtAttendReissue::getIsApproved,
+                        (a, b) -> a
+                ));
+
+        records.forEach(record -> {
+            if (StrUtil.isBlank(record.getRuleCheckinTime())) {
+                return;
+            }
+
+            LocalDateTime ruleCheckinTime = LocalDateTimeUtil.parse(record.getRuleCheckinTime(), "yyyy-MM-dd HH:mm");
+            Integer status = reissueRecordsMap.get(ruleCheckinTime);
+            if (status != null) {
+                record.setExceptionStatus(status);
+            }
+        });
+    }
+
+    private boolean isAbnormalAttendRecord(UserAttendRecordVO record) {
+        if (record == null || StrUtil.isBlank(record.getStatus())) {
+            return false;
+        }
+
+        return StrUtil.equalsAny(record.getStatus(),
+                "迟到",
+                "早退",
+                "缺卡",
+                "上班缺卡",
+                "下班缺卡");
+    }
+
+    private LocalDateTime resolveSortTime(UserAttendRecordVO record) {
+        if (record != null && StrUtil.isNotBlank(record.getRuleCheckinTime())) {
+            return LocalDateTimeUtil.parse(record.getRuleCheckinTime(), "yyyy-MM-dd HH:mm");
+        }
+        if (record != null && StrUtil.isNotBlank(record.getCheckinTime())) {
+            return LocalDateTimeUtil.parse(record.getCheckinTime(), "yyyy-MM-dd HH:mm");
+        }
+        return LocalDateTime.MIN;
+    }
+
+    @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
+    public List<EkpAttendBusinessBO> getAttendBizRecords(String ekpId, LocalDateTime begin, LocalDateTime end, Integer bizType) {
+        return cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, begin, end, bizType);
+    }
+
+    private String buildRuleInfoText(AttendRuleBO rule) {
         String[][] timeRanges = rule.getTimeRanges();
         return Arrays.stream(timeRanges)
                 .map(range -> {
@@ -308,6 +542,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 .ne(CmtAttendReissue::getIsApproved, GlobalConstants.AttendReissueApprovalResult.REJECTED)
                 .count().intValue();
     }
+
 
     private void deleteReissueProcessForEkp(String ekpReviewId) {
         DynamicDataSourceContextHolder.push(GlobalConstants.DataSource.EKP_SQLSERVER);

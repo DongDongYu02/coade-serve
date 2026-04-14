@@ -114,6 +114,18 @@ public class RedisUtil<T> {
         return JSONUtil.toBean(JSONUtil.toJsonStr(cache), clazz);
     }
 
+    public static String getStr(String key) {
+        if (StrUtil.isBlank(key)) {
+            return null;
+        }
+
+        Object cache = redisTemplate.opsForValue().get(key);
+        if (Objects.isNull(cache)) {
+            return null;
+        }
+        return StrUtil.toString(cache);
+    }
+
     /**
      * 普通缓存放入
      *

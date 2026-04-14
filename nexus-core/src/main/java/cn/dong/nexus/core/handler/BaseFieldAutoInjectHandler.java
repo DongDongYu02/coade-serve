@@ -27,6 +27,7 @@ public class BaseFieldAutoInjectHandler implements MetaObjectHandler {
             this.strictInsertFill(metaObject, "createBy", String.class, loginUser.getId());
             this.strictInsertFill(metaObject, "updateBy", String.class, loginUser.getId());
             this.strictInsertFill(metaObject, "createClient", String.class, loginUser.getClient());
+            this.strictInsertFill(metaObject, "creator", String.class, loginUser.getUsername());
         }
         this.strictInsertFill(metaObject, "createTime", LocalDateTime.class, LocalDateTime.now());
         this.strictInsertFill(metaObject, "updateTime", LocalDateTime.class, LocalDateTime.now());

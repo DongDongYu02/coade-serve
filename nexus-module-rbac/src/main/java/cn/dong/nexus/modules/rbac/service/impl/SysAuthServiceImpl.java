@@ -52,10 +52,9 @@ public class SysAuthServiceImpl implements ISysAuthService {
         loginUser.setClient(Client.ADMIN.getCode());
         authContext.login(loginUser, Client.ADMIN);
         String token = authContext.getToken();
-        LoginUserVO.UserInfo userInfo = BeanUtil.copyProperties(loginUser, LoginUserVO.UserInfo.class);
         return new LoginUserVO()
                 .setToken(token)
-                .setUserInfo(userInfo);
+                .setUserInfo(loginUser);
     }
 
     @Override
@@ -85,7 +84,7 @@ public class SysAuthServiceImpl implements ISysAuthService {
         boolean exists = sysRoleService.lambdaQuery().in(BaseEntity::getId, roleIds)
                 .eq(SysRole::getStatus, GlobalConstants.ENABLE_STATUS.ENABLED)
                 .exists();
-        if(!exists){
+        if (!exists) {
             throw new BizException(ApiMessage.FORBIDDEN);
         }
         List<String> permissionIds = sysRolePermissionService.getPermissionIdsByRoleIds(roleIds);
@@ -99,7 +98,7 @@ public class SysAuthServiceImpl implements ISysAuthService {
                 .orderByAsc(SysPermission::getSort)
                 .list();
         if (permissions.isEmpty()) {
-           throw new BizException(ApiMessage.FORBIDDEN);
+            throw new BizException(ApiMessage.FORBIDDEN);
         }
         // 获取按钮操作权限
         List<String> autoCodes = permissions.stream().filter(item -> GlobalConstants.PERMISSION_TYPE.ACTION.equals(item.getType()))

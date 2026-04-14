@@ -37,4 +37,19 @@ public interface CmtLocalConstants {
     Integer ATTEND_RULE_IMD_WECOM_ID = 13;
 
 
+    interface ISSUE_DEMAND_STATUS {
+        Integer PENDING = 0;
+        Integer ACCEPTED = 1;
+        Integer IN_PROGRESS = 2;
+        Integer COMPLETED = 3;
+        Integer REJECTED = 4;
+        Integer CLOSED = 5;
+    }
+
+    interface ISSUE_DEMAND_TYPE {
+        Integer ISSUE = 1;
+        Integer DEMAND = 2;
+    }
+
+
 }

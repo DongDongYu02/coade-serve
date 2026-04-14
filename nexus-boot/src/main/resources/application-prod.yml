@@ -22,6 +22,7 @@ coade:
     - AH0642APAJ6FCC1
     - AH0642APAJCE2A2
     - AH0642APAJ24F80
+    - BM040B4PAJFDD35
 spring:
   jackson:
     date-format: yyyy-MM-dd HH:mm:ss
