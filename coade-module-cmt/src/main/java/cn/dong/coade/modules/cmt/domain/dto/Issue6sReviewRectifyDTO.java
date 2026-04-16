@@ -45,7 +45,6 @@ public class Issue6sReviewRectifyDTO {
         private String title;
 
         @Schema(description = "整改建议")
-        @NotBlank
         private String suggestion;
 
         @Schema(description = "协助人")

@@ -24,6 +24,7 @@ public interface ICommonAttachmentService {
 
     void save(AttachmentBO attachment);
 
+    void saveBatch(List<AttachmentBO> attachments);
 
     /**
      * 查询附件

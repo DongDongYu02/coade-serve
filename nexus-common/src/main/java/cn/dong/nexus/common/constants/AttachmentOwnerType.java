@@ -9,6 +9,7 @@ public enum AttachmentOwnerType {
 
     CMT_6S_REVIEW("CMT_6S_REVIEW"),
     CMT_6S_REVIEW_PROBLEM("CMT_6S_REVIEW_PROBLEM"),
+    CMT_6S_REVIEW_PROBLEM_RESULT("CMT_6S_REVIEW_PROBLEM_RESILT"),
     CMT_ISSUE_DEMAND("CMT_ISSUE_DEMAND");
     private final String code;
 

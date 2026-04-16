@@ -81,8 +81,7 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
                                 wrapper.eq(CmtIssueDemand::getCreateBy, authContext.getLoginUser().getId())
                                         .or()
                                         .eq(CmtIssueDemand::getPrincipalUserId, authContext.getLoginUser().getId())
-                )
-                .orderByDesc(CmtIssueDemand::getCreateTime);
+                );
         List<CmtIssueDemand> records = this.list(queryWrapper);
         if (records.isEmpty()) {
             return List.of();
@@ -101,7 +100,7 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         if (attachments.isEmpty()) {
             return detail;
         }
-        detail.setAttachments(attachments.stream().map(img -> new AttachmentVO(img.getId(), coadeProperties.getFileAccessUrl() + img.getPath())).toList());
+        detail.setAttachments(BeanUtil.copyToList(attachments, AttachmentVO.class));
         return detail;
     }
 

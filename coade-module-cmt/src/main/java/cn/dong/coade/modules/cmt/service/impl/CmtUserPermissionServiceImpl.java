@@ -6,7 +6,6 @@ import cn.dong.coade.modules.cmt.mapper.CmtUserPermissionMapper;
 import cn.dong.coade.modules.cmt.service.ICmtPermissionService;
 import cn.dong.coade.modules.cmt.service.ICmtUserPermissionService;
 import cn.dong.nexus.common.constants.GlobalConstants;
-import cn.dong.nexus.core.security.context.IAuthContext;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,7 +18,6 @@ import java.util.List;
 @RequiredArgsConstructor
 public class CmtUserPermissionServiceImpl extends ServiceImpl<CmtUserPermissionMapper, CmtUserPermission> implements ICmtUserPermissionService {
     private final ICmtPermissionService cmtPermissionService;
-    private final IAuthContext authContext;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -66,7 +64,6 @@ public class CmtUserPermissionServiceImpl extends ServiceImpl<CmtUserPermissionM
                 .in(CmtPermission::getId, userPermissions.stream().map(CmtUserPermission::getCmtPermissionId).toList())
                 .list();
         return permissions.stream().map(CmtPermission::getCode).toList();
-
     }
 
     @Override

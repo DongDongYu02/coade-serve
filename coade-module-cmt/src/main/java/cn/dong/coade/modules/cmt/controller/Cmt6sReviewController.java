@@ -7,8 +7,11 @@ import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewDetailVO;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewVO;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewService;
+import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
 import cn.dong.nexus.core.resmapping.annotation.ResultTranslate;
+import cn.dong.nexus.infra.util.RedisUtil;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import io.swagger.v3.oas.annotations.Operation;
@@ -17,6 +20,8 @@ import lombok.RequiredArgsConstructor;
 import org.springdoc.core.annotations.ParameterObject;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/cmt/6s")
@@ -73,15 +78,19 @@ public class Cmt6sReviewController {
     @PostMapping("/rectify-completed/callback")
     @Operation(summary = "整改完成")
     public Result<Void> rectifyCompleted(@RequestBody String body, @RequestParam("access_token") String accessToken) {
-//        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
-//        if (Objects.isNull(token)) {
-//            return Result.error("ekp callback accessToken has expired!");
-//        }
-//        if (!String.valueOf(token).equals(accessToken)) {
-//            return Result.error("ekp callback accessToken is invalid!");
-//        }
-        String ekpReviewId = JSONUtil.parseObj(body).getStr("ekpReviewId");
-        cmt6sReviewService.rectifyCompleted(ekpReviewId);
+        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
+        if (Objects.isNull(token)) {
+            return Result.error("ekp callback accessToken has expired!");
+        }
+        if (!String.valueOf(token).equals(accessToken)) {
+            return Result.error("ekp callback accessToken is invalid!");
+        }
+        JSONObject jsonBody = JSONUtil.parseObj(body);
+//        JSONObject jsonBody = JSONUtil.parseObj("""
+//                {"result":"[{fd_3e8b05f375483e_attInfos=null, fd_3eacbfdab74dd2_attInfos=null, fd_3e8b05f375483e=2134e73bb65c4cd0a38314ac5aec4f20, fd_3e8b06cf4a9d4c_record=[{data=办公桌面可见红盖瓶状物及透明袋装物品与插座、鼠标等办公用品混放, name=余东, time=Wed Apr 15 16:50:13 CST 2026, id=190e86d8c6e297f712af1224f19abacf}], fd_3f1ad4ee6829bc=2044337337260875778, fd_3e8b08373a1ea4_record=[{data={name=余东, id=190e86d8c6e297f712af1224f19abacf}, name=余东, time=Wed Apr 15 16:50:13 CST 2026, id=190e86d8c6e297f712af1224f19abacf}], fd_3eacbfdab74dd2=uid_19d90569a8dd581f109fae74bea81cf3, fd_3e8b06d20587fe_record=[{data=2026-04-15, name=余东, time=Wed Apr 15 16:50:13 CST 2026, id=190e86d8c6e297f712af1224f19abacf}], fdId=19d905578204bcd1d547ac140fa81bf5, fd_3e8b06d20587fe_timestamp=null, fd_3e8b06d20587fe=Wed Apr 15 00:00:00 CST 2026, fd_3e8b08373a1ea4={name=余东, id=190e86d8c6e297f712af1224f19abacf}, fd_3e8b06cf4a9d4c=办公桌面可见红盖瓶状物及透明袋装物品与插座、鼠标等办公用品混放}, {fd_3e8b05f375483e_attInfos=null, fd_3eacbfdab74dd2_attInfos=null, fd_3e8b05f375483e=2bccf4d939b34dbbae511f95734cf1bb, fd_3e8b06cf4a9d4c_record=[{data=白色电源线及充电头缠绕在排插周围，未进行理线固定, name=余东, time=Wed Apr 15 16:50:13 CST 2026, id=190e86d8c6e297f712af1224f19abacf}], fd_3f1ad4ee6829bc=2044337337286041602, fd_3e8b08373a1ea4_record=[{data={name=余东, id=190e86d8c6e297f712af1224f19abacf}, name=余东, time=Wed Apr 15 16:50:13 CST 2026, id=190e86d8c6e297f712af1224f19abacf}], fd_3eacbfdab74dd2=uid_19d90569a9a5c0d2c9c0d954f0092189, fd_3e8b06d20587fe_record=[{data=2026-04-15, name=余东, time=Wed Apr 15 16:50:13 CST 2026, id=190e86d8c6e297f712af1224f19abacf}], fdId=19d90557821194ae2d76a7d4353b4c78, fd_3e8b06d20587fe_timestamp=null, fd_3e8b06d20587fe=Wed Apr 15 00:00:00 CST 2026, fd_3e8b08373a1ea4={name=余东, id=190e86d8c6e297f712af1224f19abacf}, fd_3e8b06cf4a9d4c=白色电源线及充电头缠绕在排插周围，未进行理线固定}]","ekpReviewId":"19d905577352223621ea4d443b19fab6"}://oa.zjkede.com:5100/api/cmt/6s/rectify-completed/callback?access_token=YcueCEatNoyFgdsy"}
+//                """);
+
+        cmt6sReviewService.rectifyCompleted(jsonBody);
         return Result.success();
     }
 

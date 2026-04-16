@@ -67,5 +67,8 @@ public class Cmt6sReviewDetailVO {
 
         @Schema(description = "协助人名称")
         private String assisterName;
+
+        @Schema(description = "整改结果图片")
+        private List<AttachmentVO> rectifyResultImages;
     }
 }

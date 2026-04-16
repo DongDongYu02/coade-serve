@@ -15,6 +15,12 @@ coade:
     app-secret: f407bf39fb88fb7772f6c8e475b2df40
   ekp:
     server-url: http://10.0.10.30:9081
+    review:
+      cmt6s-field:
+        att-key: fd_3eacbfdab74dd2
+        description: fd_3e8b06cf4a9d4c
+        problem-id: fd_3f1ad4ee6829bc
+    att-base-path: D:/landray/kmss/resource/
   attend-device-sn:
     - 9G04DC0PAJ3461E
     - AH0642APAJ85747
@@ -107,7 +113,7 @@ langchain4j:
   open-ai:
     chat-model:
       api-key: sk-77618696a39c47d28cda80b4341b41e4
-      model-name: qwen3.5-flash
+      model-name: qwen3.6-plus
       base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
       log-requests: true
       log-responses: true

@@ -24,11 +24,14 @@ public class IssueDemandVO {
     @Schema(description = "所属系统id")
     private Integer systemType;
 
+    @Schema(description = "其他系统名称")
+    private String otherSystem;
+
     @Schema(description = "提出部门")
     private String proposeDept;
 
     @Schema(description = "提出人ID")
-    private String proposeUser;
+    private String proposeUserId;
 
     @Schema(description = "提出人名称")
     private String proposeUserName;

@@ -31,6 +31,20 @@ public class CoadeProperties {
     @Data
     public static class Ekp {
         private String serverUrl;
+        private Review review;
+        private String attBasePath;
+
+        @Data
+        public static class Review {
+            private _6sField cmt6sField;
+
+            @Data
+            public static class _6sField {
+                private String description;
+                private String attKey;
+                private String problemId;
+            }
+        }
     }
 
     @Data

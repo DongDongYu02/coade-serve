@@ -1,7 +1,6 @@
 package cn.dong.coade.modules.cmt.domain.query;
 
 import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
-import cn.dong.coade.modules.cmt.service.impl.CmtUserServiceImpl;
 import cn.dong.nexus.core.annotations.Query;
 import cn.dong.nexus.core.base.PageQuery;
 import com.baomidou.mybatisplus.core.enums.SqlKeyword;
@@ -15,6 +14,6 @@ import lombok.EqualsAndHashCode;
 public class CmtUserQuery extends PageQuery<CmtUser> {
 
     @Schema(description = "用户名")
-    @Query(SqlKeyword.EQ)
+    @Query(SqlKeyword.LIKE)
     private String username;
 }

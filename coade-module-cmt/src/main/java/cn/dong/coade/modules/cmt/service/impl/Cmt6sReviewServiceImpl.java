@@ -1,6 +1,8 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
+import cn.dong.coade.modules.cmt.domain.bo.Cmt6sRectifyResultBO;
+import cn.dong.coade.modules.cmt.domain.bo.EkpAttachmentBO;
 import cn.dong.coade.modules.cmt.domain.dto.Cmt6sReviewDTO;
 import cn.dong.coade.modules.cmt.domain.dto.Issue6sReviewRectifyDTO;
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReview;
@@ -13,6 +15,7 @@ import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewVO;
 import cn.dong.coade.modules.cmt.mapper.Cmt6sReviewMapper;
 import cn.dong.coade.modules.cmt.service.AI6sService;
+import cn.dong.coade.modules.cmt.service.CmtEkpService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewProblemService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewService;
 import cn.dong.nexus.common.api.ICommonAttachmentService;
@@ -26,15 +29,20 @@ import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.config.properties.CoadeProperties;
 import cn.dong.nexus.core.exception.BizException;
 import cn.dong.nexus.core.resmapping.ResMappingUtil;
+import cn.dong.nexus.core.util.JavaToStringParser;
 import cn.dong.nexus.core.util.PageUtil;
+import cn.dong.nexus.core.util.UploadUtil;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
+import com.baomidou.dynamic.datasource.annotation.DSTransactional;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -53,6 +61,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -65,6 +74,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
     private final AI6sService ai6sService;
     private final CoadeProperties coadeProperties;
     private final RestTemplate restTemplate;
+    private final CmtEkpService ekpService;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -108,7 +118,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         Cmt6sReviewDetailVO detail = BeanUtil.copyProperties(record, Cmt6sReviewDetailVO.class);
         // 获取评审素材
         List<AttachmentBO> materials = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW, List.of(id));
-        detail.setMaterials(materials.stream().map(item -> new AttachmentVO(item.getId(), coadeProperties.getFileAccessUrl() + item.getPath())).toList());
+        detail.setMaterials(materials.stream().map(item -> new AttachmentVO(item.getId(), item.getPath())).toList());
 
         // 获取评审问题
         List<Cmt6sReviewProblem> dbProblems = cmt6sReviewProblemService.lambdaQuery().eq(Cmt6sReviewProblem::getReviewId, id).list();
@@ -120,13 +130,18 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         List<String> problemIds = dbProblems.stream().map(Cmt6sReviewProblem::getId).toList();
         // 查询问题图片
         List<AttachmentBO> problemImages = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM, problemIds);
+        List<AttachmentBO> problemRectifyImages = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM_RESULT, problemIds);
         // 根据问题 id 分组
         Map<String, List<AttachmentBO>> imageGroup = problemImages.stream()
+                .collect(Collectors.groupingBy(AttachmentBO::getOwnerId));
+        Map<String, List<AttachmentBO>> rectifyImagesGroup = problemRectifyImages.stream()
                 .collect(Collectors.groupingBy(AttachmentBO::getOwnerId));
         List<Cmt6sReviewDetailVO.Problem> problems = BeanUtil.copyToList(dbProblems, Cmt6sReviewDetailVO.Problem.class);
         problems.forEach(item -> {
             List<AttachmentBO> images = imageGroup.getOrDefault(item.getId(), List.of());
-            item.setImages(images.stream().map(img -> new AttachmentVO(img.getId(), coadeProperties.getFileAccessUrl() + img.getPath())).collect(Collectors.toList()));
+            List<AttachmentBO> rectifyImages = rectifyImagesGroup.getOrDefault(item.getId(), List.of());
+            item.setImages(images.stream().map(img -> new AttachmentVO(img.getId(), img.getPath())).collect(Collectors.toList()));
+            item.setRectifyResultImages(rectifyImages.stream().map(img -> new AttachmentVO(img.getId(), img.getPath())).collect(Collectors.toList()));
         });
         detail.setProblems(problems);
         // 字段翻译
@@ -212,10 +227,59 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
     }
 
     @Override
-    public void rectifyCompleted(String ekpReviewId) {
+    @DSTransactional(rollbackFor = Exception.class)
+    public void rectifyCompleted(JSONObject result) {
+        String ekpReviewId = result.getStr("ekpReviewId");
         Cmt6sReview review = this.lambdaQuery().eq(Cmt6sReview::getEkpReviewId, ekpReviewId).one();
         if (Objects.isNull(review)) {
             log.error("EKP回调整改完成失败，未找到关联的6S评审记录，ekpReviewId={}", ekpReviewId);
+        }
+        JSONArray problemRectifyResult;
+        try {
+            List<Map<String, Object>> resultListMap = JavaToStringParser.parseListMap(result.getStr("result"));
+            problemRectifyResult = JSONUtil.parseArray(resultListMap);
+        } catch (Exception e) {
+            log.error("EKP回调6S整改结果内容解析失败:{}", e.getMessage());
+            throw new BizException("EKP回调6S整改结果内容解析失败");
+        }
+        if (CollUtil.isEmpty(problemRectifyResult)) {
+            log.info("EKP回调6S整改项为空....");
+            return;
+        }
+        // 构建业务对象
+        List<Cmt6sRectifyResultBO> resultBOS = problemRectifyResult.stream().map(item -> {
+            JSONObject problem = (JSONObject) item;
+            String description = problem.getStr(coadeProperties.getEkp().getReview().getCmt6sField().getDescription());
+            String attKey = problem.getStr(coadeProperties.getEkp().getReview().getCmt6sField().getAttKey());
+            String problemId = problem.getStr(coadeProperties.getEkp().getReview().getCmt6sField().getProblemId());
+            return new Cmt6sRectifyResultBO(description, attKey, problemId);
+        }).toList();
+        // 从蓝凌查询相关的附件
+        List<EkpAttachmentBO> ekpAttachments = ekpService.getAttachmentsByKeys(resultBOS.stream().map(Cmt6sRectifyResultBO::getAttKey).toList());
+        if (!ekpAttachments.isEmpty()) {
+            // 根据attKey分组
+            Map<String, EkpAttachmentBO> ekpAttMap = ekpAttachments.stream().collect(Collectors.toMap(EkpAttachmentBO::getAttKey, Function.identity()));
+            List<AttachmentBO> resultAttachments = new ArrayList<>();
+            resultBOS.forEach(item -> {
+                // 获取对应的ekp附件
+                EkpAttachmentBO ekpAtt = ekpAttMap.get(item.getAttKey());
+                if (Objects.nonNull(ekpAtt)) {
+                    // 获取ekp文件实例
+                    String fileName = UploadUtil.buildNewFileName() + "." + ekpAtt.getAttExtName();
+                    File file = ekpService.getAttachmentFile(ekpAtt.getAttId(), FileUtil.newFile(fileName));
+                    UploadUtil.UploadInfo uploadInfo = UploadUtil.saveFile(file, ekpAtt.getAttExtName(), ekpAtt.getAttName());
+                    AttachmentBO att = new AttachmentBO();
+                    att.setName(uploadInfo.getFileName());
+                    att.setMime(uploadInfo.getMime());
+                    att.setSize(uploadInfo.getSize());
+                    att.setOriginName(uploadInfo.getOriginName());
+                    att.setPath(uploadInfo.getRelativePath());
+                    att.setOwnerId(item.getProblemId());
+                    att.setOwnerType(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM_RESULT.getCode());
+                    resultAttachments.add(att);
+                }
+            });
+            attachmentService.saveBatch(resultAttachments);
         }
         this.lambdaUpdate()
                 .set(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.COMPLETED)
@@ -297,6 +361,8 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
             Issue6sReviewRectifyDTO.Problem problem = dto.getProblems().get(i);
             String attKey = UUID.fastUUID().toString(true);
             JSONObject item = new JSONObject()
+                    // 问题ID
+                    .set("fd_3e8b057dd5931c.fd_3f1ad4ee6829bc", problem.getId())
                     // 整改内容
                     .set("fd_3e8b057dd5931c.fd_3e8b06cf4a9d4c", problem.getTitle())
                     // 截止日期

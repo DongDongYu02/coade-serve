@@ -7,6 +7,7 @@ import cn.dong.coade.modules.cmt.domain.query.Cmt6sReviewQuery;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewDetailVO;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewVO;
+import cn.hutool.json.JSONObject;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -41,5 +42,5 @@ public interface ICmt6sReviewService extends IService<Cmt6sReview> {
     /**
      * ekp 整改完成回调
      */
-    void rectifyCompleted(String ekpReviewId);
+    void rectifyCompleted(JSONObject result);
 }

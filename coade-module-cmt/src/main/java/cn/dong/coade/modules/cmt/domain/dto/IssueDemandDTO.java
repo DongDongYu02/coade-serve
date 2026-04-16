@@ -28,6 +28,9 @@ public class IssueDemandDTO extends BaseDTO<CmtIssueDemand> {
     @NotNull
     private Integer systemType;
 
+    @Schema(description = "其他系统名称")
+    private String otherSystem;
+
     @Schema(description = "问题/需求描述")
     @NotBlank
     private String description;

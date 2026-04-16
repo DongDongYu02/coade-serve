@@ -5,12 +5,12 @@ import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.domain.bo.AttachmentBO;
 import cn.dong.nexus.common.domain.bo.AttachmentOwnerSaveBO;
 import cn.dong.nexus.core.exception.BizException;
+import cn.dong.nexus.core.util.UploadUtil;
 import cn.dong.nexus.modules.system.domain.entity.SysAttachment;
 import cn.dong.nexus.modules.system.domain.vo.AttachmentVO;
 import cn.dong.nexus.modules.system.mapper.SysAttachmentMapper;
 import cn.dong.nexus.modules.system.service.ISysAttachmentOwnerService;
 import cn.dong.nexus.modules.system.service.ISysAttachmentService;
-import cn.dong.nexus.modules.system.util.UploadUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.io.FileUtil;
@@ -84,6 +84,27 @@ public class SysAttachmentServiceImplI extends ServiceImpl<SysAttachmentMapper, 
         entity.setOwnerId(attachment.getOwnerId());
         entity.setOwnerType(attachment.getOwnerType());
         this.save(entity);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void saveBatch(List<AttachmentBO> attachments) {
+        if (CollUtil.isEmpty(attachments)) {
+            return;
+        }
+        List<SysAttachment> sysAttachments = attachments.stream().map(item -> {
+            SysAttachment entity = new SysAttachment();
+            entity.setPath(item.getPath());
+            entity.setOriginName(item.getOriginName());
+            entity.setName(item.getName());
+            entity.setMime(item.getMime());
+            entity.setSize(item.getSize());
+            entity.setOwnerId(item.getOwnerId());
+            entity.setOwnerType(item.getOwnerType());
+            return entity;
+        }).toList();
+        this.saveBatch(sysAttachments);
+
     }
 
     @Override

@@ -29,6 +29,8 @@ public class CmtIssueDemand {
      */
     private Integer systemType;
 
+    private String otherSystem;
+
     /**
      * 问题/需求描述
      */
@@ -109,6 +111,7 @@ public class CmtIssueDemand {
     /**
      * 创建人名称
      */
+    @TableField(fill = FieldFill.INSERT)
     private String creator;
 
 

@@ -40,10 +40,23 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
 
     @Override
     public List<CmtUser> getUsersFromEkp() {
-        return DynamicDataSourceUtil.switchTo(
+        List<CmtUser> users = DynamicDataSourceUtil.switchTo(
                 GlobalConstants.DataSource.EKP_SQLSERVER,
                 () -> this.baseMapper.selectEkpWeComUsers()
         );
+        if (users.isEmpty()) {
+            return List.of();
+        }
+        users.forEach(item -> {
+            String dept = item.getDept();
+            if (dept.contains("-")) {
+                item.setDept(dept.split("-")[0]);
+            }
+            if (dept.contains("—")) {
+                item.setDept(dept.split("—")[0]);
+            }
+        });
+        return users;
     }
 
     @Override
@@ -191,12 +204,12 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
 
     private boolean needUpdate(CmtUser dbUser, CmtUser incoming) {
         return !Objects.equals(dbUser.getUsername(), incoming.getUsername())
-               || !Objects.equals(dbUser.getEkpId(), incoming.getEkpId())
-               || !Objects.equals(dbUser.getStatus(), incoming.getStatus())
-               || !Objects.equals(dbUser.getAvatar(), incoming.getAvatar())
-               || !Objects.equals(dbUser.getPhone(), incoming.getPhone())
-               || !Objects.equals(dbUser.getDept(), incoming.getDept())
-               || !Objects.equals(dbUser.getDeptId(), incoming.getDeptId());
+                || !Objects.equals(dbUser.getEkpId(), incoming.getEkpId())
+                || !Objects.equals(dbUser.getStatus(), incoming.getStatus())
+                || !Objects.equals(dbUser.getAvatar(), incoming.getAvatar())
+                || !Objects.equals(dbUser.getPhone(), incoming.getPhone())
+                || !Objects.equals(dbUser.getDept(), incoming.getDept())
+                || !Objects.equals(dbUser.getDeptId(), incoming.getDeptId());
     }
 
 }
