@@ -1,6 +1,6 @@
 package cn.dong.nexus.modules.system.service.impl;
 
-import cn.dong.nexus.common.api.CommonDataDictApi;
+import cn.dong.nexus.common.api.DataDictCommonApi;
 import cn.dong.nexus.common.domain.bo.DataDictBO;
 import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.base.BaseEntity;
@@ -34,7 +34,7 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-public class SysDataDictServiceImpl extends ServiceImpl<SysDataDictMapper, SysDataDict> implements ISysDataDictService, CommonDataDictApi {
+public class SysDataDictCommonServiceImpl extends ServiceImpl<SysDataDictMapper, SysDataDict> implements ISysDataDictService, DataDictCommonApi {
     private final ISysDataDictItemService dataDictItemService;
 
     @Override

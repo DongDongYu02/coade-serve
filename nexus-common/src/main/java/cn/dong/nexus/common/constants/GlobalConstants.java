@@ -149,9 +149,16 @@ public interface GlobalConstants {
 
     interface TableName {
         String CMT_6S_REVIEW = "cmt_6s_review";
+        String CMT_6S_REVIEW_PROBLEM = "cmt_6s_review_problem";
         String CMT_DEPT = "cmt_department";
         String CMT_USER = "cmt_user";
         String CMT_PERMISSION = "cmt_permission";
         String SYS_DATA_DICT_ITEM = "sys_data_dict_item";
+
+    }
+
+    interface FileExportStatus {
+        Integer SUCCESS = 1;
+        Integer FAIL = 0;
     }
 }

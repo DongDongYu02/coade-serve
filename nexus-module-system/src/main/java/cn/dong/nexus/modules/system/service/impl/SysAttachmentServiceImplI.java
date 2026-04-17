@@ -1,6 +1,6 @@
 package cn.dong.nexus.modules.system.service.impl;
 
-import cn.dong.nexus.common.api.ICommonAttachmentService;
+import cn.dong.nexus.common.api.AttachmentCommonApi;
 import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.domain.bo.AttachmentBO;
 import cn.dong.nexus.common.domain.bo.AttachmentOwnerSaveBO;
@@ -27,7 +27,7 @@ import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
-public class SysAttachmentServiceImplI extends ServiceImpl<SysAttachmentMapper, SysAttachment> implements ISysAttachmentService, ICommonAttachmentService {
+public class SysAttachmentServiceImplI extends ServiceImpl<SysAttachmentMapper, SysAttachment> implements ISysAttachmentService, AttachmentCommonApi {
 
     private final ISysAttachmentOwnerService attachmentOwnerService;
 

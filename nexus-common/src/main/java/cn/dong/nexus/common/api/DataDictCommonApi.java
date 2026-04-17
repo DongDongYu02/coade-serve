@@ -4,7 +4,7 @@ import cn.dong.nexus.common.domain.bo.DataDictBO;
 
 import java.util.List;
 
-public interface CommonDataDictApi {
+public interface DataDictCommonApi {
 
     /**
      * 获取字典项

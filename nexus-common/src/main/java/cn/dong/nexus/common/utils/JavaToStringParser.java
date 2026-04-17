@@ -1,4 +1,4 @@
-package cn.dong.nexus.core.util;
+package cn.dong.nexus.common.utils;
 
 import java.util.ArrayList;
 import java.util.LinkedHashMap;

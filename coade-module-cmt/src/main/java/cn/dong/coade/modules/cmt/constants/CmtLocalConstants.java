@@ -1,5 +1,7 @@
 package cn.dong.coade.modules.cmt.constants;
 
+import java.util.Map;
+
 /**
  * CMT 局部常量
  */
@@ -31,6 +33,14 @@ public interface CmtLocalConstants {
          * 分析失败
          */
         Integer ANALYSIS_FAILED = 4;
+
+        Map<Integer, String> DICT_MAP = Map.of(
+                IN_ANALYSIS, "分析中",
+                ANALYSIS_COMPLETED, "分析完成",
+                PENDING_RECTIFY, "待整改",
+                COMPLETED, "已完成",
+                ANALYSIS_FAILED, "分析失败"
+        );
     }
 
 

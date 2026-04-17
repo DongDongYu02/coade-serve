@@ -129,6 +129,18 @@ public class UploadUtil {
         return dir + "/" + fileName;
     }
 
+    /**
+     * 构建一个新的MD5文件路径，返回指定格式
+     */
+    public static String buildNewFileName(String extName) {
+        String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        String dir = UPLOAD_DIR + today;
+        FileUtil.mkdir(dir);
+        String fileName = MD5.create().digestHex16(System.currentTimeMillis() + RandomUtil.randomString(6));
+        return dir + "/" + fileName + "." + extName;
+    }
+
+
     public static String getFileName(String path) {
         if (StrUtil.isBlank(path)) {
             return StrUtil.EMPTY;

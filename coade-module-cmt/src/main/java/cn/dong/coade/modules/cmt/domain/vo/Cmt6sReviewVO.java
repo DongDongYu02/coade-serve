@@ -21,9 +21,15 @@ public class Cmt6sReviewVO {
     @Schema(description = "部门 ID")
     @ResMapping(sourceTable = GlobalConstants.TableName.CMT_DEPT)
     private String deptId;
-
     @Schema(description = "部门名称")
     private String deptName;
+
+    @Schema(description = "负责人ID")
+    @ResMapping(sourceTable = GlobalConstants.TableName.CMT_USER, key = "ekpId",values = "username")
+    private String responsiblePersonId;
+    @Schema(description = "负责人名称")
+    private String responsiblePersonName;
+
 
     @Schema(description = "状态")
     private Integer status;

@@ -15,7 +15,7 @@ import cn.dong.coade.modules.cmt.mapper.CmtIssueDemandMapper;
 import cn.dong.coade.modules.cmt.service.ICmtIssueDemandService;
 import cn.dong.coade.modules.cmt.service.ICmtUserService;
 import cn.dong.coade.modules.cmt.service.IWeComService;
-import cn.dong.nexus.common.api.ICommonAttachmentService;
+import cn.dong.nexus.common.api.AttachmentCommonApi;
 import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.common.domain.bo.AttachmentBO;
@@ -46,7 +46,7 @@ import java.util.Objects;
 @RequiredArgsConstructor
 public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper, CmtIssueDemand> implements ICmtIssueDemandService {
 
-    private final ICommonAttachmentService attachmentService;
+    private final AttachmentCommonApi attachmentService;
     private final CoadeProperties coadeProperties;
     private final ICmtUserService userService;
     private final IAuthContext authContext;

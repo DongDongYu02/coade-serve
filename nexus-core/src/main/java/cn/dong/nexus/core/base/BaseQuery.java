@@ -56,6 +56,10 @@ public class BaseQuery<T> {
         return queryWrapper;
     }
 
+    public void setEmptyCondition(QueryWrapper<T> queryWrapper) {
+        queryWrapper.apply("1 = 0");
+    }
+
 
     private void addCondition(QueryWrapper<?> queryWrapper,
                               SqlKeyword sqlKeyword,

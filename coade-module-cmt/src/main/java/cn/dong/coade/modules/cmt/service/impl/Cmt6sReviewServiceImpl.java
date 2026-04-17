@@ -9,27 +9,31 @@ import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReview;
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReviewProblem;
 import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
 import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
+import cn.dong.coade.modules.cmt.domain.excel.Cmt6sReviewProblemExcel;
 import cn.dong.coade.modules.cmt.domain.query.Cmt6sReviewQuery;
-import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewDetailVO;
-import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewStatusCountVO;
-import cn.dong.coade.modules.cmt.domain.vo.Cmt6sReviewVO;
+import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.mapper.Cmt6sReviewMapper;
 import cn.dong.coade.modules.cmt.service.AI6sService;
 import cn.dong.coade.modules.cmt.service.CmtEkpService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewProblemService;
 import cn.dong.coade.modules.cmt.service.ICmt6sReviewService;
-import cn.dong.nexus.common.api.ICommonAttachmentService;
+import cn.dong.nexus.common.api.AttachmentCommonApi;
+import cn.dong.nexus.common.api.FileExportCommonApi;
 import cn.dong.nexus.common.constants.ApiConstants;
 import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.common.domain.bo.AttachmentBO;
 import cn.dong.nexus.common.domain.bo.AttachmentOwnerSaveBO;
+import cn.dong.nexus.common.domain.bo.FileExportBO;
 import cn.dong.nexus.common.domain.vo.AttachmentVO;
+import cn.dong.nexus.common.domain.vo.FileExportVO;
+import cn.dong.nexus.common.utils.JavaToStringParser;
 import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.config.properties.CoadeProperties;
 import cn.dong.nexus.core.exception.BizException;
 import cn.dong.nexus.core.resmapping.ResMappingUtil;
-import cn.dong.nexus.core.util.JavaToStringParser;
+import cn.dong.nexus.core.security.context.IAuthContext;
+import cn.dong.nexus.core.util.FesodExcelUtil;
 import cn.dong.nexus.core.util.PageUtil;
 import cn.dong.nexus.core.util.UploadUtil;
 import cn.hutool.core.bean.BeanUtil;
@@ -61,6 +65,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -69,12 +74,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6sReview> implements ICmt6sReviewService {
 
-    private final ICommonAttachmentService attachmentService;
+    private final AttachmentCommonApi attachmentService;
     private final ICmt6sReviewProblemService cmt6sReviewProblemService;
     private final AI6sService ai6sService;
     private final CoadeProperties coadeProperties;
     private final RestTemplate restTemplate;
     private final CmtEkpService ekpService;
+    private final FileExportCommonApi fileExportCommonApi;
+    private final IAuthContext authContext;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -116,6 +123,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
             throw new BizException(ApiMessage.NOT_FOUND);
         }
         Cmt6sReviewDetailVO detail = BeanUtil.copyProperties(record, Cmt6sReviewDetailVO.class);
+        ResMappingUtil.translateObjField(detail);
         // 获取评审素材
         List<AttachmentBO> materials = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW, List.of(id));
         detail.setMaterials(materials.stream().map(item -> new AttachmentVO(item.getId(), item.getPath())).toList());
@@ -145,7 +153,6 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         });
         detail.setProblems(problems);
         // 字段翻译
-        ResMappingUtil.translateObjField(detail);
         ResMappingUtil.translateField(detail.getProblems());
         return detail;
     }
@@ -285,6 +292,110 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
                 .set(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.COMPLETED)
                 .eq(Cmt6sReview::getEkpReviewId, ekpReviewId)
                 .update();
+    }
+
+    @Override
+    public List<Cmt6sReviewProblemExcel> getProblemRectifyExcelData(Cmt6sReviewProblemQuery query) {
+        List<Cmt6sReviewProblem> problemList = cmt6sReviewProblemService.list(query.toQueryWrapper());
+        if (problemList.isEmpty()) {
+            return List.of();
+        }
+        List<Cmt6sReviewProblemExcel> excelData = BeanUtil.copyToList(problemList, Cmt6sReviewProblemExcel.class);
+        ResMappingUtil.translateField(excelData);
+        List<AttachmentBO> problemImages = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM,
+                problemList.stream().map(Cmt6sReviewProblem::getId).toList());
+        List<AttachmentBO> rectifyImages = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM_RESULT,
+                problemList.stream().map(Cmt6sReviewProblem::getId).toList());
+        if (CollUtil.isNotEmpty(problemImages)) {
+            Map<String, String> problemImageMap = problemImages.stream().collect(Collectors.toMap(AttachmentBO::getOwnerId, AttachmentBO::getPath));
+            excelData.forEach(item -> {
+                String path = problemImageMap.get(item.getId());
+                if (StrUtil.isNotBlank(path)) {
+                    String fullPath = coadeProperties.getFileUploadPath() + path;
+                    File file = FileUtil.file(fullPath);
+                    if (file.exists()) {
+                        item.setProblemImage(file);
+                    }
+                }
+            });
+        }
+        if (CollUtil.isNotEmpty(rectifyImages)) {
+            Map<String, String> rectifyImageMap = rectifyImages.stream().collect(Collectors.toMap(AttachmentBO::getOwnerId, AttachmentBO::getPath, (v1, _) -> v1));
+            excelData.forEach(item -> {
+                String path = rectifyImageMap.get(item.getId());
+                if (StrUtil.isNotBlank(path)) {
+                    String fullPath = coadeProperties.getFileUploadPath() + path;
+                    File file = FileUtil.file(fullPath);
+                    if (file.exists()) {
+                        item.setProblemImage(file);
+                    }
+                }
+            });
+        }
+        return excelData;
+    }
+
+    @Override
+    public void exportProblemRectifyToExcel(Cmt6sReviewProblemQuery query) {
+        List<Cmt6sReviewProblemExcel> excelData = this.getProblemRectifyExcelData(query);
+        if (CollUtil.isEmpty(excelData)) {
+            throw new BizException("没有可导出的数据！");
+        }
+        // 创建导出记录
+        String path = FesodExcelUtil.generateRandomXlsxFilePath();
+        FileExportBO fileExportBO = new FileExportBO();
+        fileExportBO.setPath(path);
+        fileExportBO.setName(FileUtil.getName(path));
+        fileExportBO.setOwnerType(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM.getCode());
+        String id = fileExportCommonApi.save(fileExportBO);
+        CompletableFuture.runAsync(() -> {
+            try {
+                log.info("开始导出6s整改问题记录");
+                FesodExcelUtil.write(path, Cmt6sReviewProblemExcel.class, excelData);
+                fileExportCommonApi.updateExportStatus(id, GlobalConstants.FileExportStatus.SUCCESS);
+            } catch (Exception e) {
+                fileExportCommonApi.updateExportStatus(id, GlobalConstants.FileExportStatus.FAIL, e.getMessage());
+                throw new BizException("导出失败：" + e.getMessage());
+            }
+        });
+
+
+    }
+
+    @Override
+    public IPage<Cmt6sReviewProblemVO> getProblemPageList(Cmt6sReviewProblemQuery query) {
+        Page<Cmt6sReviewProblem> page = cmt6sReviewProblemService.page(query.toPage(), query.toQueryWrapper());
+        if (page.getRecords().isEmpty()) {
+            return PageUtil.emptyPage();
+        }
+        IPage<Cmt6sReviewProblemVO> pageVO = PageUtil.convertPage(page, Cmt6sReviewProblemVO.class);
+        List<AttachmentBO> problemImages = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM,
+                pageVO.getRecords().stream().map(Cmt6sReviewProblemVO::getId).toList());
+        List<AttachmentBO> rectifyImages = attachmentService.getByOwners(AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM_RESULT,
+                pageVO.getRecords().stream().map(Cmt6sReviewProblemVO::getId).toList());
+        if (CollUtil.isNotEmpty(problemImages)) {
+            Map<String, String> problemImageMap = problemImages.stream().collect(Collectors.toMap(AttachmentBO::getOwnerId, AttachmentBO::getPath));
+            pageVO.getRecords().forEach(item -> {
+                String path = problemImageMap.getOrDefault(item.getId(), "");
+                item.setProblemImage(path);
+            });
+        }
+        if (CollUtil.isNotEmpty(rectifyImages)) {
+            Map<String, String> rectifyImageMap = rectifyImages.stream().collect(Collectors.toMap(AttachmentBO::getOwnerId, AttachmentBO::getPath, (v1, _) -> v1));
+            pageVO.getRecords().forEach(item -> {
+                String path = rectifyImageMap.getOrDefault(item.getId(), "");
+                item.setRectifyImage(path);
+            });
+        }
+        return pageVO;
+    }
+
+    @Override
+    public List<FileExportVO> getProblemExportList() {
+        return fileExportCommonApi.getExportList(
+                AttachmentOwnerType.CMT_6S_REVIEW_PROBLEM.getCode(),
+                authContext.getLoginUser().getId()
+        );
     }
 
     /**
