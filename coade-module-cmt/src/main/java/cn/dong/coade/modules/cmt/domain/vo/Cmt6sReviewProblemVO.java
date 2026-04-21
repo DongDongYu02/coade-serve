@@ -2,6 +2,7 @@ package cn.dong.coade.modules.cmt.domain.vo;
 
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.resmapping.annotation.ResMapping;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -16,8 +17,8 @@ public class Cmt6sReviewProblemVO {
 
     @Schema(description = "评审记录ID")
     @ResMapping(sourceTable = GlobalConstants.TableName.CMT_6S_REVIEW,
-            values = {"title", "responsiblePersonId", "deptId", "status"},
-            targets = {"reviewTitle", "responsiblePersonId", "deptId", "status"})
+            values = {"title", "responsiblePersonId", "deptId", "status", "createBy", "rectifyFinishTime"},
+            targets = {"reviewTitle", "responsiblePersonId", "deptId", "status", "creatorId", "rectifyFinishTime"})
     private String reviewId;
 
     @Schema(description = "记录标题")
@@ -49,6 +50,7 @@ public class Cmt6sReviewProblemVO {
     private String assisterName;
 
     @Schema(description = "截止时间 ")
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
     private LocalDateTime deadline;
 
     @Schema(description = "状态")
@@ -59,4 +61,15 @@ public class Cmt6sReviewProblemVO {
 
     @Schema(description = "整改结果图片")
     private String rectifyImage;
+
+    @Schema(description = "提交人ID")
+    @ResMapping(sourceTable = GlobalConstants.TableName.CMT_USER, values = "username", targets = "creator")
+    private String creatorId;
+
+    @Schema(description = "提交人")
+    private String creator;
+
+    @Schema(description = "整改完成时间")
+    @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDateTime rectifyFinishTime;
 }

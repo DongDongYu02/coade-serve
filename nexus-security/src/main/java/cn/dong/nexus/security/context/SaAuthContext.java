@@ -48,6 +48,11 @@ public class SaAuthContext implements IAuthContext {
     }
 
     @Override
+    public String getLoginUserId() {
+        return this.getLoginUserOrThrow().getId();
+    }
+
+    @Override
     public void checkSession() {
         SaSession session = StpUtil.getSession(false);
         if (Objects.isNull(session)) {

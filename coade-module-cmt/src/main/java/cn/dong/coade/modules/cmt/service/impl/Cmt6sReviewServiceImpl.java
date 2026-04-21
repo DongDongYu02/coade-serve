@@ -29,10 +29,12 @@ import cn.dong.nexus.common.domain.vo.AttachmentVO;
 import cn.dong.nexus.common.domain.vo.FileExportVO;
 import cn.dong.nexus.common.utils.JavaToStringParser;
 import cn.dong.nexus.core.api.ApiMessage;
+import cn.dong.nexus.core.base.BaseEntity;
 import cn.dong.nexus.core.config.properties.CoadeProperties;
 import cn.dong.nexus.core.exception.BizException;
 import cn.dong.nexus.core.resmapping.ResMappingUtil;
 import cn.dong.nexus.core.security.context.IAuthContext;
+import cn.dong.nexus.core.security.enums.Client;
 import cn.dong.nexus.core.util.FesodExcelUtil;
 import cn.dong.nexus.core.util.PageUtil;
 import cn.dong.nexus.core.util.UploadUtil;
@@ -47,6 +49,8 @@ import cn.hutool.json.JSONArray;
 import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.dynamic.datasource.annotation.DSTransactional;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -61,6 +65,7 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -112,7 +117,13 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
 
     @Override
     public IPage<Cmt6sReviewVO> getPageList(Cmt6sReviewQuery query) {
-        Page<Cmt6sReview> page = this.page(query.toPage(), query.toQueryWrapper());
+        QueryWrapper<Cmt6sReview> queryWrapper = query.toQueryWrapper();
+        String client = authContext.getLoginUserOrThrow().getClient();
+        if (Client.CMT.getCode().equals(client)) {
+            queryWrapper.lambda().eq(BaseEntity::getCreateBy, authContext.getLoginUserOrThrow().getId());
+        }
+        Page<Cmt6sReview> page = this.page(query.toPage(), queryWrapper);
+
         return PageUtil.convertPage(page, Cmt6sReviewVO.class);
     }
 
@@ -160,10 +171,16 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
     @Override
     public Cmt6sReviewStatusCountVO getStatusCount() {
         Cmt6sReviewStatusCountVO vo = new Cmt6sReviewStatusCountVO(0L, 0L, 0L);
-        vo.setTotal(this.count());
-        List<Cmt6sReview> reviews = this.lambdaQuery().select(Cmt6sReview::getStatus)
-                .in(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.PENDING_RECTIFY, CmtLocalConstants._6S_REVIEW_STATUS.COMPLETED)
-                .list();
+        String client = authContext.getLoginUserOrThrow().getClient();
+        LambdaQueryWrapper<Cmt6sReview> queryWrapper = new LambdaQueryWrapper<>();
+        if (Client.CMT.getCode().equals(client)) {
+            queryWrapper.eq(BaseEntity::getCreateBy, authContext.getLoginUserOrThrow().getId());
+        }
+        vo.setTotal(this.count(queryWrapper));
+        List<Cmt6sReview> reviews = this.list(
+                queryWrapper.select(Cmt6sReview::getStatus)
+                        .in(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.PENDING_RECTIFY, CmtLocalConstants._6S_REVIEW_STATUS.COMPLETED)
+        );
         if (reviews.isEmpty()) return vo;
         long pendingRectify = reviews.stream().filter(item -> CmtLocalConstants._6S_REVIEW_STATUS.PENDING_RECTIFY.equals(item.getStatus())).count();
         long rectifyCompleted = reviews.stream().filter(item -> CmtLocalConstants._6S_REVIEW_STATUS.COMPLETED.equals(item.getStatus())).count();
@@ -205,6 +222,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
             Cmt6sReviewProblem problem = new Cmt6sReviewProblem();
             problem.setId(item.getId());
             problem.setAssister(item.getAssister());
+            problem.setDeadline(item.getDeadline());
             return problem;
         }).toList());
         // 添加新的问题
@@ -290,6 +308,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
         }
         this.lambdaUpdate()
                 .set(Cmt6sReview::getStatus, CmtLocalConstants._6S_REVIEW_STATUS.COMPLETED)
+                .set(Cmt6sReview::getRectifyFinishTime, LocalDateTime.now())
                 .eq(Cmt6sReview::getEkpReviewId, ekpReviewId)
                 .update();
     }
@@ -327,7 +346,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
                     String fullPath = coadeProperties.getFileUploadPath() + path;
                     File file = FileUtil.file(fullPath);
                     if (file.exists()) {
-                        item.setProblemImage(file);
+                        item.setRectifyImage(file);
                     }
                 }
             });
@@ -426,6 +445,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
                     problem.setSuggestion(item.getSuggestion());
                 }
                 problem.setAssister(item.getAssister());
+                problem.setDeadline(item.getDeadline());
                 problemList.add(problem);
             });
         }
@@ -442,6 +462,7 @@ public class Cmt6sReviewServiceImpl extends ServiceImpl<Cmt6sReviewMapper, Cmt6s
             problem.setSuggestion(item.getSuggestion());
             problem.setAssister(item.getAssister());
             problem.setDescription(item.getTitle());
+            problem.setDeadline(item.getDeadline());
             cmt6sReviewProblemService.save(problem);
             List<AttachmentOwnerSaveBO> problemImages = item.getImages().stream()
                     .map(image -> new AttachmentOwnerSaveBO(image.getId(),

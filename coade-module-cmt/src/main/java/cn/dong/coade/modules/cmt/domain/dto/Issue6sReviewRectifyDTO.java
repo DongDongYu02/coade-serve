@@ -51,12 +51,10 @@ public class Issue6sReviewRectifyDTO {
         private String assister;
 
         @Schema(description = "截止日期")
-        @NotNull
         @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE,timezone = GlobalConstants.ZoneTime.GMT8)
         private LocalDate deadline;
 
         @Schema(description = "问题图片")
-        @NotEmpty
         private List<AttachmentDTO> images;
 
         @Schema(description = "新增的问题图片")

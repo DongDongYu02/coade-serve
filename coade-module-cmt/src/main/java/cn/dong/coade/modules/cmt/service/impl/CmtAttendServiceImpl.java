@@ -1,20 +1,20 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
+import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
+import cn.dong.coade.modules.cmt.domain.bo.CmtLoginUser;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
-import cn.dong.coade.modules.cmt.domain.dto.AttendReissueApplyPassDTO;
-import cn.dong.coade.modules.cmt.domain.dto.ReissueAttendDTO;
+import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.CmtAttendReissue;
+import cn.dong.coade.modules.cmt.domain.entity.CmtLeaveRequest;
+import cn.dong.coade.modules.cmt.domain.entity.CmtOutgoingRequest;
 import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
-import cn.dong.coade.modules.cmt.domain.vo.UserAttendInfoVO;
-import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
-import cn.dong.coade.modules.cmt.domain.vo.UserLeaveAttendVO;
+import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
+import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.mapper.CmtAttendMapper;
 import cn.dong.coade.modules.cmt.mapper.CmtUserMapper;
-import cn.dong.coade.modules.cmt.service.ICmtAttendReissueService;
-import cn.dong.coade.modules.cmt.service.ICmtAttendRuleService;
-import cn.dong.coade.modules.cmt.service.ICmtAttendService;
+import cn.dong.coade.modules.cmt.service.*;
 import cn.dong.coade.modules.cmt.utils.AttendRecordCalculator;
 import cn.dong.coade.modules.cmt.utils.WeComApiUtil;
 import cn.dong.nexus.common.constants.ApiConstants;
@@ -51,6 +51,9 @@ import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -64,12 +67,16 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     private final IAuthContext authContext;
     private final CmtAttendMapper cmtAttendMapper;
     private final CmtUserMapper cmtUserMapper;
+    private final ICmtUserService cmtUserService;
     private final AttendRecordCalculator attendRecordCalculator;
     private final ICmtAttendReissueService attendReissueService;
     private final RestTemplate restTemplate;
     private final ICmtAttendRuleService attendRuleService;
-
+    private final CmtEkpService cmtEkpService;
+    private final ICmtLeaveRequestService leaveRequestService;
+    private final ICmtOutgoingRequestService outgoingRequestService;
     private static final String ATTEND_REISSUE_EKP_REVIEW_TEMPLATE_ID = "16be9d5fc79ef23244153e6457b9483a";
+
 
     /**
      * 获取用户今日企微打卡记录
@@ -88,7 +95,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         if (LocalDate.of(year, month, day).isBefore(LocalDate.of(2026, 4, 1))) {
             return new UserAttendInfoVO("无需打卡", List.of(), new UserLeaveAttendVO());
         }
-        LoginUser loginUser = authContext.getLoginUserOrThrow();
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
         String weComId = loginUser.getExtInfo().get("weComId").toString();
         String ekpId = loginUser.getExtInfo().get("ekpId").toString();
         LocalDate now = LocalDate.of(year, month, day);
@@ -142,15 +149,15 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             }).toList();
         }
         // 请假记录
-        List<EkpAttendBusinessBO> leaveInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.LEAVE);
+        List<EkpAttendBusinessBO> leaveInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.LEAVE);
 //        EkpAttendBusinessBO r = new EkpAttendBusinessBO();
 //        r.setStartTime(LocalDateTime.of(2026, 4, 8, 15, 0));
 //        r.setEndTime(LocalDateTime.of(2026, 4, 8, 17, 30));
 //        List<EkpAttendBusinessBO> leaveInfo = List.of(r);
         // 外出记录
-        List<EkpAttendBusinessBO> outInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.OUTGOING);
+        List<EkpAttendBusinessBO> outInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.OUTGOING);
         // 出差记录
-        List<EkpAttendBusinessBO> tripInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveType.BIZ_TRIP);
+        List<EkpAttendBusinessBO> tripInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.BIZ_TRIP);
 
         UserLeaveAttendVO userLeaveAttendVO = attendRecordCalculator.buildUserTodayLeaveInfo(leaveInfo, outInfo, tripInfo);
         userAttend = attendRecordCalculator.calculate(
@@ -176,8 +183,24 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         }
         long end = System.currentTimeMillis();
         log.info("用户：{} 获取考勤耗时：{}，考勤日期：{}", loginUser.getUsername(), end - start, LocalDateTimeUtil.format(now, GlobalConstants.DatePattern.NORMAL_ONLY_DATE));
+
         return new UserAttendInfoVO(ruleInfo, userAttend, userLeaveAttendVO);
 
+    }
+
+    @Override
+    public BigDecimal getCurrentUserLeaveDuration(LocalDateTime beginTime, LocalDateTime endTime) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUser();
+        return this.getLeaveDurationByEkpUserId(loginUser.getEkpId(), beginTime, endTime);
+    }
+
+    @Override
+    public BigDecimal getLeaveDurationByEkpUserId(String ekpUserId, LocalDateTime beginTime, LocalDateTime endTime) {
+        CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, ekpUserId).one();
+        if (Objects.isNull(user)) {
+            throw new BizException(ApiMessage.USER_NOT_FOUND);
+        }
+        return this.calculateDurationOfAttend(user.getWeComId(), beginTime, endTime);
     }
 
     @Override
@@ -229,9 +252,9 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             if (StrUtil.isNotBlank(ekpId)) {
                 CmtAttendServiceImpl _this = SpringUtil.getBean(this.getClass());
 
-                leaveInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveType.LEAVE);
-                tripInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveType.BIZ_TRIP);
-                outInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveType.OUTGOING);
+                leaveInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveBizType.LEAVE);
+                tripInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveBizType.BIZ_TRIP);
+                outInfo = _this.getAttendBizRecords(ekpId, begin, end, GlobalConstants.EkpLeaveBizType.OUTGOING);
 
                 attendReissues = attendReissueService.getUserReissueRecordsByTimeRange(ekpId, begin, end);
             }
@@ -289,6 +312,239 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
         return result;
     }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addLeaveRequest(AttendLeaveRequestDTO dto) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
+        dto.doValidate();
+        // 计算请假时长
+        BigDecimal duration = this.calculateDurationOfAttend(loginUser.getWeComId(), dto.getBeginTime(), dto.getEndTime());
+        dto.setDuration(duration);
+        CmtLeaveRequest entity = dto.toEntity();
+        entity.setUserEkpId(loginUser.getEkpId());
+        entity.setUserId(loginUser.getId());
+        leaveRequestService.save(entity);
+        // 发起EKP请假流程审批
+        String ekpReviewId = cmtEkpService.startLeaveRequestReview(dto, loginUser);
+        leaveRequestService.lambdaUpdate().eq(CmtLeaveRequest::getId, entity.getId())
+                .set(CmtLeaveRequest::getEkpReviewId, ekpReviewId)
+                .update();
+    }
+
+    @Override
+    public void saveOrUpdateLeaveRequestStatus(AttendLeaveRequestEkpCallbackDTO dto) {
+        // 查询是否本系统提交的申请
+        CmtLeaveRequest leaveRequest = leaveRequestService.lambdaQuery().eq(CmtLeaveRequest::getEkpReviewId, dto.getEkpReviewId()).one();
+        if (Objects.nonNull(leaveRequest)) {
+            // 更新请假申请状态
+            leaveRequestService.lambdaUpdate()
+                    .set(CmtLeaveRequest::getStatus, dto.getStatus())
+                    .eq(CmtLeaveRequest::getId, leaveRequest.getId())
+                    .update();
+            return;
+        }
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(dto.getStatus())) {
+            // 新增请假申请
+            CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
+            if (Objects.isNull(user)) {
+                throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
+            }
+            CmtLeaveRequest record = BeanUtil.copyProperties(dto, CmtLeaveRequest.class);
+            record.setUserId(user.getId());
+            record.setCreateBy(user.getId());
+            leaveRequestService.save(record);
+        }
+    }
+
+    @Override
+    public List<AttendLeaveRequestVO> getUserLeaveRequestList() {
+        LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
+        List<CmtLeaveRequest> leaveRequests = leaveRequestService.lambdaQuery()
+                .eq(CmtLeaveRequest::getUserId, authContext.getLoginUserId())
+                .ge(CmtLeaveRequest::getCreateTime, sixMonthsAgo)
+                .orderByDesc(CmtLeaveRequest::getCreateTime)
+                .list();
+        return BeanUtil.copyToList(leaveRequests, AttendLeaveRequestVO.class);
+
+    }
+
+    @Override
+    @DSTransactional(rollbackFor = Exception.class)
+    public void revokeLeaveRequest(String id) {
+        CmtLeaveRequest leaveRequest = leaveRequestService.getById(id);
+        if (Objects.isNull(leaveRequest)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(leaveRequest.getStatus())) {
+            throw new BizException("请假申请已审批通过，无法撤销！");
+        }
+        cmtEkpService.deleteEkpReview(leaveRequest.getEkpReviewId());
+        leaveRequestService.lambdaUpdate().set(CmtLeaveRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.REVOKED)
+                .eq(CmtLeaveRequest::getId, id)
+                .update();
+    }
+
+    @Override
+    public BigDecimal getOutgoingDurationByEkpUserId(AttendOutgoingDurationQuery query) {
+        if (Objects.isNull(query.getOutTimeEnd()) || Objects.isNull(query.getOutTimeBegin())) {
+            return BigDecimal.ZERO;
+        }
+        LocalDateTime beginTime = query.getOutDate().atTime(query.getOutTimeBegin());
+        LocalDateTime endTime = query.getOutDate().atTime(query.getOutTimeEnd());
+        CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, query.getUserEkpId()).one();
+        if (Objects.isNull(user)) {
+            return BigDecimal.ZERO;
+        }
+        return this.calculateDurationOfAttend(user.getWeComId(), beginTime, endTime);
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addOutgoingRequest(AttendOutgoingRequestDTO dto) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
+        dto.doValidate();
+        // 计算请假时长
+        LocalDateTime beginTime = dto.getOutDate().atTime(dto.getOutTimeBegin());
+        LocalDateTime endTime = dto.getOutDate().atTime(dto.getOutTimeEnd());
+        BigDecimal duration = this.calculateDurationOfAttend(loginUser.getWeComId(), beginTime, endTime);
+        dto.setDuration(duration);
+        CmtOutgoingRequest entity = dto.toEntity();
+        entity.setUserEkpId(loginUser.getEkpId());
+        entity.setUserId(loginUser.getId());
+        outgoingRequestService.save(entity);
+        // 发起EKP请假流程审批
+        String ekpReviewId = cmtEkpService.startOutgoingRequestReview(dto, loginUser);
+        outgoingRequestService.lambdaUpdate().eq(CmtOutgoingRequest::getId, entity.getId())
+                .set(CmtOutgoingRequest::getEkpReviewId, ekpReviewId)
+                .update();
+    }
+
+    @Override
+    public void saveOrUpdateOutgoingRequestStatus(AttendOutgoingRequestEkpCallbackDTO dto) {
+        // 查询是否本系统提交的申请
+        CmtOutgoingRequest outgoing = outgoingRequestService.lambdaQuery().eq(CmtOutgoingRequest::getEkpReviewId, dto.getEkpReviewId()).one();
+        if (Objects.nonNull(outgoing)) {
+            // 更新外出申请状态
+            outgoingRequestService.lambdaUpdate()
+                    .set(CmtOutgoingRequest::getStatus, dto.getStatus())
+                    .eq(CmtOutgoingRequest::getId, outgoing.getId())
+                    .update();
+            return;
+        }
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(dto.getStatus())) {
+            // 新增外出申请
+            CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
+            if (Objects.isNull(user)) {
+                throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
+            }
+            CmtOutgoingRequest record = BeanUtil.copyProperties(dto, CmtOutgoingRequest.class);
+            record.setUserId(user.getId());
+            record.setCreateBy(user.getId());
+            outgoingRequestService.save(record);
+        }
+    }
+
+    @Override
+    public BigDecimal getCurrentUserOutgoingDuration(AttendOutgoingDurationQuery query) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUser();
+        query.setUserEkpId(loginUser.getEkpId());
+        return this.getOutgoingDurationByEkpUserId(query);
+    }
+
+    @Override
+    public List<AttendOutgoingRequestVO> getUserOutgoingRequestList() {
+        LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
+        List<CmtOutgoingRequest> outgoingRequests = outgoingRequestService.lambdaQuery()
+                .eq(CmtOutgoingRequest::getUserId, authContext.getLoginUserId())
+                .ge(CmtOutgoingRequest::getCreateTime, sixMonthsAgo)
+                .orderByDesc(CmtOutgoingRequest::getCreateTime)
+                .list();
+        return BeanUtil.copyToList(outgoingRequests, AttendOutgoingRequestVO.class);
+    }
+
+    @Override
+    public void revokeOutgoingRequest(String id) {
+        CmtOutgoingRequest outgoingRequest = outgoingRequestService.getById(id);
+        if (Objects.isNull(outgoingRequest)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(outgoingRequest.getStatus())) {
+            throw new BizException("请假申请已审批通过，无法撤销！");
+        }
+        cmtEkpService.deleteEkpReview(outgoingRequest.getEkpReviewId());
+        outgoingRequestService.lambdaUpdate().set(CmtOutgoingRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.REVOKED)
+                .eq(CmtOutgoingRequest::getId, id)
+                .update();
+    }
+
+    /**
+     * 计算请假工时
+     */
+    @Override
+    public BigDecimal calculateDurationOfAttend(String weComId, LocalDateTime beginTime, LocalDateTime endTime) {
+        if (StrUtil.isBlank(weComId) || Objects.isNull(beginTime) || Objects.isNull(endTime) || !endTime.isAfter(beginTime)) {
+            return BigDecimal.ZERO;
+        }
+
+        BigDecimal totalMinutes = BigDecimal.ZERO;
+        LocalDate currentDate = beginTime.toLocalDate();
+        LocalDate endDate = endTime.toLocalDate();
+
+        while (!currentDate.isAfter(endDate)) {
+            // 逐天获取当天考勤规则
+            AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, currentDate);
+            if (rule == null || rule.getRuleType() == AttendRuleType.EMPTY) {
+                currentDate = currentDate.plusDays(1);
+                continue;
+            }
+
+            // 获取“用于计算请假时长”的时间段
+            String[][] leaveCalcRanges = getLeaveCalcRanges(rule);
+
+            for (String[] range : leaveCalcRanges) {
+                LocalDateTime workStart = LocalDateTime.of(currentDate, LocalTime.parse(range[0]));
+                LocalDateTime workEnd = LocalDateTime.of(currentDate, LocalTime.parse(range[1]));
+
+                // 请假区间与工作区间求交集
+                LocalDateTime actualStart = beginTime.isAfter(workStart) ? beginTime : workStart;
+                LocalDateTime actualEnd = endTime.isBefore(workEnd) ? endTime : workEnd;
+
+                if (actualEnd.isAfter(actualStart)) {
+                    long minutes = Duration.between(actualStart, actualEnd).toMinutes();
+                    totalMinutes = totalMinutes.add(BigDecimal.valueOf(minutes));
+                }
+            }
+
+            currentDate = currentDate.plusDays(1);
+        }
+
+        return totalMinutes
+                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP)
+                .stripTrailingZeros();
+    }
+
+    /**
+     * 获取“用于计算请假时长”的班次区间
+     */
+    private String[][] getLeaveCalcRanges(AttendRuleBO rule) {
+        if (rule.getRuleType() == AttendRuleType.EMPTY) {
+            return new String[0][];
+        }
+
+        if (rule.getRuleType() == AttendRuleType.IMD) {
+            // 注塑部请假时长按这个规则计算，不按原始打卡点规则算
+            return new String[][]{
+                    {"08:00", "11:15"},
+                    {"11:45", "17:30"},
+                    {"18:00", "20:30"}
+            };
+        }
+
+        // FIXED 直接按原始规则算
+        return rule.getTimeRanges() == null ? new String[0][] : rule.getTimeRanges();
+    }
+
 
     private List<EkpAttendBusinessBO> filterBizByDay(List<EkpAttendBusinessBO> source, LocalDate day) {
         if (CollUtil.isEmpty(source)) {

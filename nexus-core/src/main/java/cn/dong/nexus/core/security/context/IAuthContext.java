@@ -17,6 +17,8 @@ public interface IAuthContext {
 
     LoginUser getLoginUser();
 
+    String getLoginUserId();
+
     void checkSession();
 
     void updateSession(LoginUser loginUser);

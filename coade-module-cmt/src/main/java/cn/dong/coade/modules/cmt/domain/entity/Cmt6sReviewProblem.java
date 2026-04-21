@@ -3,7 +3,7 @@ package cn.dong.coade.modules.cmt.domain.entity;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 @TableName("cmt_6s_review_problem")
@@ -19,7 +19,7 @@ public class Cmt6sReviewProblem {
 
     private String assister;
 
-    private LocalDateTime deadline;
+    private LocalDate deadline;
 
 
 }

@@ -36,13 +36,35 @@ public class CoadeProperties {
 
         @Data
         public static class Review {
+            private String leaveRequestReviewTemplateId;
+            private String outgoingRequestReviewTemplateId;
             private _6sField cmt6sField;
+            private LeaveRequestField leaveRequestField;
+            private OutgoingRequestField outgoingRequestField;
 
             @Data
             public static class _6sField {
                 private String description;
                 private String attKey;
                 private String problemId;
+            }
+
+            @Data
+            public static class LeaveRequestField {
+                private String type;
+                private String beginTime;
+                private String endTime;
+                private String duration;
+                private String reason;
+            }
+
+            @Data
+            public static class OutgoingRequestField {
+                private String outDate;
+                private String outTimeBegin;
+                private String outTimeEnd;
+                private String duration;
+                private String reason;
             }
         }
     }

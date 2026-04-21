@@ -25,7 +25,7 @@ public class Cmt6sReviewVO {
     private String deptName;
 
     @Schema(description = "负责人ID")
-    @ResMapping(sourceTable = GlobalConstants.TableName.CMT_USER, key = "ekpId",values = "username")
+    @ResMapping(sourceTable = GlobalConstants.TableName.CMT_USER, key = "ekpId", values = "username")
     private String responsiblePersonId;
     @Schema(description = "负责人名称")
     private String responsiblePersonName;
@@ -37,6 +37,13 @@ public class Cmt6sReviewVO {
     @Schema(description = "创建时间")
     @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
     private LocalDateTime createTime;
+
+    @Schema(description = "创建人ID")
+    @ResMapping(sourceTable = GlobalConstants.TableName.CMT_USER, values = "username", targets = "creator")
+    private String createBy;
+
+    @Schema(description = "创建人")
+    private String creator;
 
 
 }

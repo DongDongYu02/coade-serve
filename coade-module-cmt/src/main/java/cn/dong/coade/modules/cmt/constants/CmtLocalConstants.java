@@ -61,5 +61,25 @@ public interface CmtLocalConstants {
         Integer DEMAND = 2;
     }
 
+    interface LEAVE_REQUEST_TYPE {
+        Integer PERSONAL = 2;
+        Integer SICK = 3;
+
+        String PERSONAL_TEXT = "事假";
+        String SICK_TEXT = "病假";
+
+        Map<Integer, String> DICT_MAP = Map.of(
+                PERSONAL, PERSONAL_TEXT,
+                SICK, SICK_TEXT
+        );
+    }
+
+    interface ATTEND_REQUEST_STATUS {
+        Integer PENDING = 0;
+        Integer APPROVED = 1;
+        Integer REJECTED = 2;
+        Integer REVOKED = 3;
+
+    }
 
 }

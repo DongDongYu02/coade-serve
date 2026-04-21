@@ -1,17 +1,34 @@
 package cn.dong.coade.modules.cmt.service;
 
+import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
+import cn.dong.coade.modules.cmt.domain.bo.CmtLoginUser;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttachmentBO;
+import cn.dong.coade.modules.cmt.domain.dto.AttendLeaveRequestDTO;
+import cn.dong.coade.modules.cmt.domain.dto.AttendOutgoingRequestDTO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
 import cn.dong.coade.modules.cmt.mapper.CmtEkpMapper;
 import cn.dong.nexus.common.constants.ApiConstants;
 import cn.dong.nexus.common.constants.GlobalConstants;
+import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.config.properties.CoadeProperties;
+import cn.dong.nexus.core.exception.BizException;
+import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.net.url.UrlBuilder;
+import cn.hutool.core.util.StrUtil;
 import cn.hutool.http.HttpUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import com.baomidou.dynamic.datasource.annotation.DS;
+import com.baomidou.dynamic.datasource.annotation.DSTransactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
 
 import java.io.File;
 import java.util.List;
@@ -24,9 +41,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
+@Slf4j
 public class CmtEkpService {
     private final CmtEkpMapper cmtEkpMapper;
     private final CoadeProperties coadeProperties;
+    private final IAuthContext authContext;
+    private final RestTemplate restTemplate;
 
     /**
      * 查询 EKP 的部门
@@ -86,5 +106,118 @@ public class CmtEkpService {
                 .build();
         String downloadUrl = HttpUtil.get(url);
         return HttpUtil.downloadFileFromUrl(downloadUrl, file);
+    }
+
+    /**
+     * 启动请假申请流程
+     *
+     */
+    public String startLeaveRequestReview(AttendLeaveRequestDTO dto, CmtLoginUser loginUser) {
+        String url = coadeProperties.getEkp().getServerUrl() + ApiConstants.INITIATE_EKP_REVIEW;
+        String templateId = coadeProperties.getEkp().getReview().getLeaveRequestReviewTemplateId();
+        String typeText = CmtLocalConstants.LEAVE_REQUEST_TYPE.DICT_MAP.getOrDefault(dto.getType(), CmtLocalConstants.LEAVE_REQUEST_TYPE.PERSONAL_TEXT);
+        String docSubject = StrUtil.format("{}提交的{}申请", loginUser.getUsername(), typeText);
+        String docCreator = buildUserFieldByEkpId(loginUser.getEkpId());
+        JSONObject content = new JSONObject();
+        CoadeProperties.Ekp.Review.LeaveRequestField leaveRequestField = coadeProperties.getEkp().getReview().getLeaveRequestField();
+        // 请假类型
+        content.set(leaveRequestField.getType(), dto.getType());
+        // 请假开始日期
+        content.set(leaveRequestField.getBeginTime(), dto.getBeginTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
+        // 请假结束日期
+        content.set(leaveRequestField.getEndTime(), dto.getEndTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
+        // 请假时长
+        content.set(leaveRequestField.getDuration(), dto.getDuration().doubleValue());
+        // 请假原因
+        content.set(leaveRequestField.getReason(), dto.getReason());
+
+        MultiValueMap<String, Object> wholeForm = new LinkedMultiValueMap<>();
+        wholeForm.add("docSubject", docSubject);
+        wholeForm.add("docCreator", docCreator);
+        wholeForm.add("docStatus", 20);
+        wholeForm.add("fdTemplateId", templateId);
+        wholeForm.add("formValues", content.toJSONString(1));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(wholeForm, headers);
+
+        String body;
+        try {
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            body = exchange.getBody();
+        } catch (RestClientException e) {
+            log.error("发起EKP请假流程失败:{}", e.getMessage());
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        if (JSONUtil.isTypeJSON(body)) {
+            log.error("发起EKP请假流程失败:{}", body);
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        return body;
+    }
+
+    private String buildUserFieldByEkpId(String ekpId) {
+        if (StrUtil.isBlank(ekpId)) {
+            return "";
+        }
+        return StrUtil.format("""
+                {"Id":"{}"}
+                """, ekpId);
+    }
+
+    /**
+     * 删除蓝凌审批流
+     *
+     * @param ekpReviewId ekp 审批流ID
+     */
+    @DSTransactional(rollbackFor = Exception.class)
+    public void deleteEkpReview(String ekpReviewId) {
+        cmtEkpMapper.deleteReviewAreader(ekpReviewId);
+        cmtEkpMapper.deleteReviewOreader(ekpReviewId);
+        cmtEkpMapper.deleteBookingReview(ekpReviewId);
+        cmtEkpMapper.deleteReviewTodo(ekpReviewId);
+    }
+
+    /**
+     * 启动外出申请审批流
+     */
+    public String startOutgoingRequestReview(AttendOutgoingRequestDTO dto, CmtLoginUser loginUser) {
+        String url = coadeProperties.getEkp().getServerUrl() + ApiConstants.INITIATE_EKP_REVIEW;
+        String templateId = coadeProperties.getEkp().getReview().getOutgoingRequestReviewTemplateId();
+        String docCreator = buildUserFieldByEkpId(loginUser.getEkpId());
+        JSONObject content = new JSONObject();
+        CoadeProperties.Ekp.Review.OutgoingRequestField outgoingRequestField = coadeProperties.getEkp().getReview().getOutgoingRequestField();
+        // 外出日期
+        content.set(outgoingRequestField.getOutDate(), dto.getOutDate().format(GlobalConstants.DateFormat.NORMAL_ONLY_DATE));
+        // 外出开始时间
+        content.set(outgoingRequestField.getOutTimeBegin(), dto.getOutTimeBegin().format(GlobalConstants.DateFormat.TIME));
+        // 外出结束时间
+        content.set(outgoingRequestField.getOutTimeEnd(), dto.getOutTimeEnd().format(GlobalConstants.DateFormat.TIME));
+        // 外出时长
+        content.set(outgoingRequestField.getDuration(), dto.getDuration().doubleValue());
+        // 外出事由
+        content.set(outgoingRequestField.getReason(), dto.getReason());
+        MultiValueMap<String, Object> wholeForm = new LinkedMultiValueMap<>();
+        wholeForm.add("docCreator", docCreator);
+        wholeForm.add("docStatus", 20);
+        wholeForm.add("fdTemplateId", templateId);
+        wholeForm.add("formValues", content.toJSONString(1));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(wholeForm, headers);
+
+        String body;
+        try {
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            body = exchange.getBody();
+        } catch (RestClientException e) {
+            log.error("发起EKP外出流程失败:{}", e.getMessage());
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        if (JSONUtil.isTypeJSON(body)) {
+            log.error("发起EKP外出流程失败:{}", body);
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        return body;
     }
 }

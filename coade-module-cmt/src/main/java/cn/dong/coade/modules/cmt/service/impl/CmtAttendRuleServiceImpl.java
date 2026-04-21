@@ -22,6 +22,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
@@ -84,7 +85,7 @@ public class CmtAttendRuleServiceImpl extends ServiceImpl<CmtAttendRuleMapper, C
         cmtAttendRule.setWeComId(weComId);
         cmtAttendRule.setRule(JSONUtil.toJsonStr(ruleBO));
         this.save(cmtAttendRule);
-        RedisUtil.set(cacheKey, ruleBO);
+        RedisUtil.set(cacheKey, ruleBO, 15, TimeUnit.DAYS);
         return ruleBO;
 
 
@@ -97,7 +98,7 @@ public class CmtAttendRuleServiceImpl extends ServiceImpl<CmtAttendRuleMapper, C
         List<CmtAttendRule> rules = this.lambdaQuery()
                 .ge(CmtAttendRule::getAttendDate, begin)
                 .lt(CmtAttendRule::getAttendDate, end)
-                .eq(CmtAttendRule::getWeComId,weComId)
+                .eq(CmtAttendRule::getWeComId, weComId)
                 .list();
         if (rules.isEmpty()) {
             return Map.of();

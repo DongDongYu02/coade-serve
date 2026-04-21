@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
+import java.time.LocalDateTime;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("cmt_6s_review")
@@ -21,4 +23,6 @@ public class Cmt6sReview extends BaseEntity {
     private String responsiblePersonId;
 
     private String ekpReviewId;
+
+    private LocalDateTime rectifyFinishTime;
 }

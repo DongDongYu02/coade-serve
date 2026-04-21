@@ -1,6 +1,7 @@
 package cn.dong.nexus.core.util;
 
 import cn.dong.nexus.core.exception.BizException;
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.crypto.digest.MD5;
@@ -39,6 +40,7 @@ public class FesodExcelUtil {
 
     public static String generateRandomXlsxFilePath() {
         String today = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"));
+        FileUtil.mkdir(UploadUtil.UPLOAD_DIR + today);
         String fileName = MD5.create().digestHex16(System.currentTimeMillis() + RandomUtil.randomString(6));
         return today + "/" + fileName + ".xlsx";
     }

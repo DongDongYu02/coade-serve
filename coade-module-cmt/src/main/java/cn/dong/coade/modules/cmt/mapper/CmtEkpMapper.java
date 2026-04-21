@@ -2,6 +2,7 @@ package cn.dong.coade.modules.cmt.mapper;
 
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttachmentBO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
@@ -34,4 +35,24 @@ public interface CmtEkpMapper {
            </script>
             """)
     List<EkpAttachmentBO> selectAttachmentsByKeys(@Param("keys") List<String> keys);
+
+    @Delete("""
+            delete FROM km_review_main WHERE fd_id = #{reviewId}
+            """)
+    void deleteBookingReview(@Param("reviewId") String reviewId);
+
+    @Delete("""
+            delete FROM km_review_main_areader WHERE fd_doc_id = #{reviewId}
+            """)
+    void deleteReviewAreader(@Param("reviewId") String reviewId);
+
+    @Delete("""
+            delete FROM km_review_main_oreader WHERE fd_doc_id = #{reviewId}
+            """)
+    void deleteReviewOreader(@Param("reviewId") String reviewId);
+
+    @Delete("""
+            delete FROM sys_notify_todo WHERE fd_model_id = #{reviewId}
+            """)
+    void deleteReviewTodo(@Param("reviewId") String reviewId);
 }

@@ -24,7 +24,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/cmt/issue-demand")
-@Tag(name = "问题需求")
+@Tag(name = "问题/需求反馈")
 @RequiredArgsConstructor
 public class CmtIssueDemandController {
 

@@ -24,12 +24,15 @@ public interface GlobalConstants {
 
         String Y_M_D_H_M = "yyyy-MM-dd HH:mm";
 
+        String TIME = "HH:mm";
+
     }
 
     interface DateFormat {
         DateTimeFormatter NORMAL_ONLY_DATE = DateTimeFormatter.ofPattern(DatePattern.NORMAL_ONLY_DATE);
         DateTimeFormatter NORMAL = DateTimeFormatter.ofPattern(DatePattern.NORMAL);
         DateTimeFormatter Y_M_D_H_M = DateTimeFormatter.ofPattern(DatePattern.Y_M_D_H_M);
+        DateTimeFormatter TIME = DateTimeFormatter.ofPattern(DatePattern.TIME);
     }
 
     /**
@@ -112,7 +115,7 @@ public interface GlobalConstants {
         Integer SPECIAL = 3;
     }
 
-    interface EkpLeaveType {
+    interface EkpLeaveBizType {
         /**
          * 假勤类型 请假
          */
@@ -159,6 +162,7 @@ public interface GlobalConstants {
 
     interface FileExportStatus {
         Integer SUCCESS = 1;
-        Integer FAIL = 0;
+        Integer FAIL = 2;
     }
+
 }

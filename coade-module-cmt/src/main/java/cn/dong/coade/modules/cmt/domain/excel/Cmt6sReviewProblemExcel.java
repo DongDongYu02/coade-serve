@@ -6,11 +6,13 @@ import cn.dong.nexus.core.resmapping.annotation.ResMapping;
 import lombok.Data;
 import org.apache.fesod.sheet.annotation.ExcelIgnore;
 import org.apache.fesod.sheet.annotation.ExcelProperty;
+import org.apache.fesod.sheet.annotation.format.DateTimeFormat;
 import org.apache.fesod.sheet.annotation.write.style.*;
 import org.apache.fesod.sheet.enums.poi.FillPatternTypeEnum;
 import org.apache.fesod.sheet.enums.poi.VerticalAlignmentEnum;
 
 import java.io.File;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -35,6 +37,7 @@ public class Cmt6sReviewProblemExcel {
     private File problemImage;
 
     @ExcelProperty("整改结果")
+    @ColumnWidth(30)
     private File rectifyImage;
 
     @ExcelProperty("负责人")
@@ -42,6 +45,14 @@ public class Cmt6sReviewProblemExcel {
 
     @ExcelProperty("协助人")
     private String assisterName;
+
+    @ExcelProperty("截止时间")
+    @DateTimeFormat(GlobalConstants.DatePattern.NORMAL_ONLY_DATE)
+    private LocalDate deadline;
+
+    @ExcelProperty("整改完成时间")
+    @DateTimeFormat(GlobalConstants.DatePattern.NORMAL_ONLY_DATE)
+    private LocalDateTime rectifyFinishTime;
 
     @ExcelProperty(value = "状态", converter = Cmt6sReviewStatusConverter.class)
     private Integer status;
@@ -53,8 +64,8 @@ public class Cmt6sReviewProblemExcel {
     private String id;
 
     @ResMapping(sourceTable = GlobalConstants.TableName.CMT_6S_REVIEW,
-            values = {"deptId", "responsiblePersonId", "title", "status"},
-            targets = {"deptId", "responsiblePersonId", "title", "status"})
+            values = {"deptId", "responsiblePersonId", "title", "status", "rectifyFinishTime"},
+            targets = {"deptId", "responsiblePersonId", "title", "status", "rectifyFinishTime"})
     @ExcelIgnore
     private String reviewId;
 

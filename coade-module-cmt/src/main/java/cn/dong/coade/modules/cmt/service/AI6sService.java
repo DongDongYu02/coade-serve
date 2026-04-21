@@ -47,7 +47,7 @@ public class AI6sService {
             log.error("6S评审AI分析失败：未查询到相关附件，记录ID：{}", recordId);
             return;
         }
-        String prompt = ResourceUtil.readStr("prompts/6s-prompt-v2.txt", StandardCharsets.UTF_8);
+        String prompt = ResourceUtil.readStr("prompts/6s-prompt-v3.txt", StandardCharsets.UTF_8);
         List<Content> contents = new ArrayList<>();
         contents.add(TextContent.from(prompt));
 
