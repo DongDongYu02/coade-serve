@@ -35,6 +35,7 @@ public class NexusApplication {
                 env.getProperty("server.port"),
                 env.getProperty("server.port"),
                 env.getProperty("server.servlet.context-path") == null ? "" : env.getProperty("server.servlet.context-path"));
+
     }
 
 }

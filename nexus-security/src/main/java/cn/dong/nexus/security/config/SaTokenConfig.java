@@ -61,8 +61,11 @@ public class SaTokenConfig implements WebMvcConfigurer {
                 "/cmt/6s/rectify-completed/callback",
                 "/cmt/attend/ekp/leave-duration",
                 "/cmt/attend/ekp/outgoing-duration",
+                "/cmt/attend/ekp/overtime-duration",
                 "/cmt/attend/ekp/leave-request/callback",
-                "/cmt/attend/ekp/outgoing-request/callback"
+                "/cmt/attend/ekp/outgoing-request/callback",
+                "/cmt/attend/ekp/biz-trip-request/callback",
+                "/cmt/attend/ekp/overtime-request/callback"
                 );
     }
 

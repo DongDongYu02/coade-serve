@@ -1,21 +1,21 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
+import cn.dong.coade.modules.cmt.domain.bo.AttendDurationBO;
 import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
 import cn.dong.coade.modules.cmt.domain.bo.CmtLoginUser;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
-import cn.dong.coade.modules.cmt.domain.entity.CmtAttendReissue;
-import cn.dong.coade.modules.cmt.domain.entity.CmtLeaveRequest;
-import cn.dong.coade.modules.cmt.domain.entity.CmtOutgoingRequest;
-import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
+import cn.dong.coade.modules.cmt.domain.entity.*;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
+import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
 import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.mapper.CmtAttendMapper;
 import cn.dong.coade.modules.cmt.mapper.CmtUserMapper;
 import cn.dong.coade.modules.cmt.service.*;
-import cn.dong.coade.modules.cmt.utils.AttendRecordCalculator;
+import cn.dong.coade.modules.cmt.support.AttendRecordCalculator;
+import cn.dong.coade.modules.cmt.support.OvertimeDurationCalculator;
 import cn.dong.coade.modules.cmt.utils.WeComApiUtil;
 import cn.dong.nexus.common.constants.ApiConstants;
 import cn.dong.nexus.common.constants.GlobalConstants;
@@ -75,7 +75,13 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     private final CmtEkpService cmtEkpService;
     private final ICmtLeaveRequestService leaveRequestService;
     private final ICmtOutgoingRequestService outgoingRequestService;
+    private final ICmtBizTripRequestService bizTripRequestService;
+    private final ICmtOvertimeRequestService overtimeRequestService;
     private static final String ATTEND_REISSUE_EKP_REVIEW_TEMPLATE_ID = "16be9d5fc79ef23244153e6457b9483a";
+
+    private static final Set<LocalDate> noNeedCheckinDates = Set.of(
+            LocalDate.of(2026, 4, 4)
+    );
 
 
     /**
@@ -91,14 +97,14 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
     public UserAttendInfoVO getUserAttendByDate(int year, int month, int day) {
         long start = System.currentTimeMillis();
+        LocalDate now = LocalDate.of(year, month, day);
         // 仅支持查询2026年4月之后的考勤
-        if (LocalDate.of(year, month, day).isBefore(LocalDate.of(2026, 4, 1))) {
+        if (now.isBefore(LocalDate.of(2026, 4, 1))) {
             return new UserAttendInfoVO("无需打卡", List.of(), new UserLeaveAttendVO());
         }
         CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
         String weComId = loginUser.getExtInfo().get("weComId").toString();
         String ekpId = loginUser.getExtInfo().get("ekpId").toString();
-        LocalDate now = LocalDate.of(year, month, day);
         LocalDateTime todayBegin = LocalDateTimeUtil.beginOfDay(now);
         LocalDateTime todayEnd = LocalDateTimeUtil.endOfDay(now);
         List<UserAttendRecordVO> userAttend = WeComApiUtil.getUserAttend(weComId, todayBegin, todayEnd);
@@ -106,7 +112,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, now);
 //        String[][] range = {{"08:00", "11:30"}, {"12:30", "17:30"}};
 //        EkpAttendRuleBO rule =   new EkpAttendRuleBO(range,new int[]{1,2,3,4,5,6},AttendRuleType.FIXED);
-        if (Objects.isNull(rule)) {
+        if (Objects.isNull(rule) || noNeedCheckinDates.contains(now)) {
             userAttend.forEach(item -> item.setStatus("正常"));
             return new UserAttendInfoVO("无需打卡", userAttend, new UserLeaveAttendVO());
         }
@@ -189,18 +195,19 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     }
 
     @Override
-    public BigDecimal getCurrentUserLeaveDuration(LocalDateTime beginTime, LocalDateTime endTime) {
+    public AttendDurationVO getCurrentUserLeaveDuration(LocalDateTime beginTime, LocalDateTime endTime) {
         CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUser();
-        return this.getLeaveDurationByEkpUserId(loginUser.getEkpId(), beginTime, endTime);
+        return this.getAttendDurationByEkpUserId(loginUser.getEkpId(), beginTime, endTime);
     }
 
     @Override
-    public BigDecimal getLeaveDurationByEkpUserId(String ekpUserId, LocalDateTime beginTime, LocalDateTime endTime) {
+    public AttendDurationVO getAttendDurationByEkpUserId(String ekpUserId, LocalDateTime beginTime, LocalDateTime endTime) {
         CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, ekpUserId).one();
         if (Objects.isNull(user)) {
             throw new BizException(ApiMessage.USER_NOT_FOUND);
         }
-        return this.calculateDurationOfAttend(user.getWeComId(), beginTime, endTime);
+        AttendDurationBO durationBO = this.calculateDurationOfAttend(user.getWeComId(), beginTime, endTime);
+        return BeanUtil.copyProperties(durationBO, AttendDurationVO.class);
     }
 
     @Override
@@ -269,6 +276,9 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         List<UserAttendRecordVO> result = new ArrayList<>();
 
         for (LocalDate day = monthStart; !day.isAfter(queryEndDate); day = day.plusDays(1)) {
+            if(noNeedCheckinDates.contains(day)){
+                continue;
+            }
             AttendRuleBO rule = dayRuleMap.get(day.getDayOfMonth());
 
             if (Objects.isNull(rule)) {
@@ -319,8 +329,9 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
         dto.doValidate();
         // 计算请假时长
-        BigDecimal duration = this.calculateDurationOfAttend(loginUser.getWeComId(), dto.getBeginTime(), dto.getEndTime());
-        dto.setDuration(duration);
+        AttendDurationBO durationBO = this.calculateDurationOfAttend(loginUser.getWeComId(), dto.getBeginTime(), dto.getEndTime());
+        dto.setDuration(durationBO.getDuration());
+        dto.setDurationFormat(durationBO.getDurationFormat());
         CmtLeaveRequest entity = dto.toEntity();
         entity.setUserEkpId(loginUser.getEkpId());
         entity.setUserId(loginUser.getId());
@@ -337,6 +348,9 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         // 查询是否本系统提交的申请
         CmtLeaveRequest leaveRequest = leaveRequestService.lambdaQuery().eq(CmtLeaveRequest::getEkpReviewId, dto.getEkpReviewId()).one();
         if (Objects.nonNull(leaveRequest)) {
+            if (CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING.equals(dto.getStatus())) {
+                return;
+            }
             // 更新请假申请状态
             leaveRequestService.lambdaUpdate()
                     .set(CmtLeaveRequest::getStatus, dto.getStatus())
@@ -344,17 +358,26 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                     .update();
             return;
         }
-        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(dto.getStatus())) {
-            // 新增请假申请
-            CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
-            if (Objects.isNull(user)) {
-                throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
-            }
-            CmtLeaveRequest record = BeanUtil.copyProperties(dto, CmtLeaveRequest.class);
-            record.setUserId(user.getId());
-            record.setCreateBy(user.getId());
-            leaveRequestService.save(record);
+        // 新增请假申请
+        CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
+        if (Objects.isNull(user)) {
+            throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
         }
+        // 判断请假区间内是否已有请假申请
+        boolean exists = leaveRequestService.lambdaQuery()
+                .in(CmtLeaveRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
+                .le(CmtLeaveRequest::getBeginTime, dto.getEndTime())
+                .ge(CmtLeaveRequest::getEndTime, dto.getBeginTime())
+                .eq(CmtLeaveRequest::getUserId, user.getId())
+                .exists();
+        if (exists) {
+            throw new BizException("选择的时间段内已经提交过申请了！");
+        }
+        CmtLeaveRequest record = BeanUtil.copyProperties(dto, CmtLeaveRequest.class);
+        record.setUserId(user.getId());
+        record.setStatus(dto.getStatus());
+        record.setCreateBy(user.getId());
+        leaveRequestService.save(record);
     }
 
     @Override
@@ -386,17 +409,18 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     }
 
     @Override
-    public BigDecimal getOutgoingDurationByEkpUserId(AttendOutgoingDurationQuery query) {
+    public AttendDurationVO getOutgoingDurationByEkpUserId(AttendOutgoingDurationQuery query) {
         if (Objects.isNull(query.getOutTimeEnd()) || Objects.isNull(query.getOutTimeBegin())) {
-            return BigDecimal.ZERO;
+            return new AttendDurationVO(BigDecimal.ZERO, "0小时");
         }
         LocalDateTime beginTime = query.getOutDate().atTime(query.getOutTimeBegin());
         LocalDateTime endTime = query.getOutDate().atTime(query.getOutTimeEnd());
         CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, query.getUserEkpId()).one();
         if (Objects.isNull(user)) {
-            return BigDecimal.ZERO;
+            return new AttendDurationVO(BigDecimal.ZERO, "0小时");
         }
-        return this.calculateDurationOfAttend(user.getWeComId(), beginTime, endTime);
+        AttendDurationBO durationBO = this.calculateDurationOfAttend(user.getWeComId(), beginTime, endTime);
+        return new AttendDurationVO(durationBO.getDuration(), durationBO.getDurationFormat());
     }
 
     @Override
@@ -407,7 +431,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         // 计算请假时长
         LocalDateTime beginTime = dto.getOutDate().atTime(dto.getOutTimeBegin());
         LocalDateTime endTime = dto.getOutDate().atTime(dto.getOutTimeEnd());
-        BigDecimal duration = this.calculateDurationOfAttend(loginUser.getWeComId(), beginTime, endTime);
+        BigDecimal duration = this.calculateDurationOfAttend(loginUser.getWeComId(), beginTime, endTime).getDuration();
         dto.setDuration(duration);
         CmtOutgoingRequest entity = dto.toEntity();
         entity.setUserEkpId(loginUser.getEkpId());
@@ -432,24 +456,34 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                     .update();
             return;
         }
-        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(dto.getStatus())) {
-            // 新增外出申请
-            CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
-            if (Objects.isNull(user)) {
-                throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
-            }
-            CmtOutgoingRequest record = BeanUtil.copyProperties(dto, CmtOutgoingRequest.class);
-            record.setUserId(user.getId());
-            record.setCreateBy(user.getId());
-            outgoingRequestService.save(record);
+        // 新增外出申请
+        CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
+        if (Objects.isNull(user)) {
+            throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
         }
+        // 判断外出区间内是否已有申请
+        boolean exists = outgoingRequestService.lambdaQuery()
+                .in(CmtOutgoingRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
+                .le(CmtOutgoingRequest::getOutTimeBegin, dto.getOutTimeEnd())
+                .ge(CmtOutgoingRequest::getOutTimeEnd, dto.getOutTimeBegin())
+                .eq(CmtOutgoingRequest::getOutDate, dto.getOutDate())
+                .eq(CmtOutgoingRequest::getUserId, user.getId())
+                .exists();
+        if (exists) {
+            throw new BizException("选择的时间段内已经提交过申请了！");
+        }
+        CmtOutgoingRequest record = BeanUtil.copyProperties(dto, CmtOutgoingRequest.class);
+        record.setUserId(user.getId());
+        record.setStatus(dto.getStatus());
+        record.setCreateBy(user.getId());
+        outgoingRequestService.save(record);
     }
 
     @Override
     public BigDecimal getCurrentUserOutgoingDuration(AttendOutgoingDurationQuery query) {
         CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUser();
         query.setUserEkpId(loginUser.getEkpId());
-        return this.getOutgoingDurationByEkpUserId(query);
+        return this.getOutgoingDurationByEkpUserId(query).getDuration();
     }
 
     @Override
@@ -478,50 +512,309 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 .update();
     }
 
-    /**
-     * 计算请假工时
-     */
     @Override
-    public BigDecimal calculateDurationOfAttend(String weComId, LocalDateTime beginTime, LocalDateTime endTime) {
-        if (StrUtil.isBlank(weComId) || Objects.isNull(beginTime) || Objects.isNull(endTime) || !endTime.isAfter(beginTime)) {
+    @Transactional(rollbackFor = Exception.class)
+    public void addBizTripRequest(AttendBizTripRequestDTO dto) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
+        dto.doValidate();
+        // 计算外出时长
+        AttendDurationBO duration = this.calculateDurationOfAttend(loginUser.getWeComId(), dto.getBeginTime(), dto.getEndTime());
+        dto.setDuration(duration.getDuration());
+        dto.setDurationFormat(duration.getDurationFormat());
+        CmtBizTripRequest entity = dto.toEntity();
+        entity.setUserEkpId(loginUser.getEkpId());
+        entity.setUserId(loginUser.getId());
+        bizTripRequestService.save(entity);
+        // 发起EKP出差流程审批
+        String ekpReviewId = cmtEkpService.startBizTripRequestReview(dto, loginUser);
+        bizTripRequestService.lambdaUpdate().eq(CmtBizTripRequest::getId, entity.getId())
+                .set(CmtBizTripRequest::getEkpReviewId, ekpReviewId)
+                .update();
+    }
+
+    @Override
+    public void saveOrUpdateBizTripRequestStatus(AttendBizTripRequestEkpCallbackDTO dto) {
+        // 查询是否本系统提交的申请
+        CmtBizTripRequest bizTripRequest = bizTripRequestService.lambdaQuery().eq(CmtBizTripRequest::getEkpReviewId, dto.getEkpReviewId()).one();
+        if (Objects.nonNull(bizTripRequest)) {
+            // 更新外出申请状态
+            bizTripRequestService.lambdaUpdate()
+                    .set(CmtBizTripRequest::getStatus, dto.getStatus())
+                    .eq(CmtBizTripRequest::getId, bizTripRequest.getId())
+                    .update();
+            return;
+        }
+        // 新增出差申请
+        CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
+        if (Objects.isNull(user)) {
+            throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
+        }
+        // 判断请假区间内是否已有请假申请
+        boolean exists = bizTripRequestService.lambdaQuery()
+                .in(CmtBizTripRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
+                .le(CmtBizTripRequest::getBeginTime, dto.getEndTime())
+                .ge(CmtBizTripRequest::getEndTime, dto.getBeginTime())
+                .eq(CmtBizTripRequest::getUserId, user.getId())
+                .exists();
+        if (exists) {
+            throw new BizException("选择的出差时间段内已经提交过申请了！");
+        }
+        CmtBizTripRequest record = BeanUtil.copyProperties(dto, CmtBizTripRequest.class);
+        record.setUserId(user.getId());
+        record.setCreateBy(user.getId());
+        record.setStatus(dto.getStatus());
+        bizTripRequestService.save(record);
+    }
+
+    @Override
+    public List<AttendBizTripRequestVO> getUserBizTripRequestList() {
+        LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
+        List<CmtBizTripRequest> bizTripRequests = bizTripRequestService.lambdaQuery()
+                .eq(CmtBizTripRequest::getUserId, authContext.getLoginUserId())
+                .ge(CmtBizTripRequest::getCreateTime, sixMonthsAgo)
+                .orderByDesc(CmtBizTripRequest::getCreateTime)
+                .list();
+        return BeanUtil.copyToList(bizTripRequests, AttendBizTripRequestVO.class);
+    }
+
+    @Override
+    public void revokeBizTripRequest(String id) {
+        CmtBizTripRequest bizTripRequest = bizTripRequestService.getById(id);
+        if (Objects.isNull(bizTripRequest)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(bizTripRequest.getStatus())) {
+            throw new BizException("出差申请已审批通过，无法撤销！");
+        }
+        cmtEkpService.deleteEkpReview(bizTripRequest.getEkpReviewId());
+        bizTripRequestService.lambdaUpdate().set(CmtBizTripRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.REVOKED)
+                .eq(CmtBizTripRequest::getId, id)
+                .update();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void addOvertimeRequest(AttendOvertimeRequestDTO dto) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
+        dto.doValidate();
+        OvertimeDurationCalculator calculator =
+                new OvertimeDurationCalculator(attendRuleService::getUserAttendRule);
+        LocalDateTime beginTime = dto.getOvertimeDate().atTime(dto.getBeginTime());
+        LocalDateTime endTime = dto.getOvertimeDate().atTime(dto.getEndTime());
+        AttendDurationBO durationBO = calculator.calculateDurationOfOvertime(loginUser.getWeComId(), beginTime, endTime);
+        if (durationBO.getDuration().compareTo(BigDecimal.valueOf(0.5)) < 0) {
+            throw new BizException("加班时长必须超过半小时!");
+        }
+        dto.setDuration(durationBO.getDuration());
+        CmtOvertimeRequest entity = dto.toEntity();
+        entity.setUserEkpId(loginUser.getEkpId());
+        entity.setUserId(loginUser.getId());
+        overtimeRequestService.save(entity);
+        // 发起EKP加班流程审批
+        String ekpReviewId = cmtEkpService.startOvertimeRequestReview(dto, loginUser);
+        overtimeRequestService.lambdaUpdate().eq(CmtOvertimeRequest::getId, entity.getId())
+                .set(CmtOvertimeRequest::getEkpReviewId, ekpReviewId)
+                .update();
+    }
+
+    @Override
+    public BigDecimal getOvertimeDurationByEkpUserId(AttendOvertimeDurationQuery query) {
+        if (Objects.isNull(query.getBeginTime()) || Objects.isNull(query.getEndTime())) {
             return BigDecimal.ZERO;
         }
+        CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, query.getUserEkpId()).one();
+        if (Objects.isNull(user)) {
+            return BigDecimal.ZERO;
+        }
+        OvertimeDurationCalculator calculator =
+                new OvertimeDurationCalculator(attendRuleService::getUserAttendRule);
+        LocalDateTime beginTime = query.getOvertimeDate().atTime(query.getBeginTime());
+        LocalDateTime endTime = query.getOvertimeDate().atTime(query.getEndTime());
+        return calculator.calculateDurationOfOvertime(user.getWeComId(), beginTime, endTime).getDuration();
+    }
 
-        BigDecimal totalMinutes = BigDecimal.ZERO;
-        LocalDate currentDate = beginTime.toLocalDate();
+    @Override
+    public void saveOrUpdateOvertimeRequestStatus(AttendOvertimeRequestEkpCallbackDTO dto) {
+        // 查询是否本系统提交的申请
+        CmtOvertimeRequest overtimeRequest = overtimeRequestService.lambdaQuery().eq(CmtOvertimeRequest::getEkpReviewId, dto.getEkpReviewId()).one();
+        if (Objects.nonNull(overtimeRequest)) {
+            // 更新加班申请状态
+            overtimeRequestService.lambdaUpdate()
+                    .set(CmtOvertimeRequest::getStatus, dto.getStatus())
+                    .eq(CmtOvertimeRequest::getId, overtimeRequest.getId())
+                    .update();
+            return;
+        }
+        // 新增加班申请
+        if (dto.getDuration().compareTo(BigDecimal.valueOf(0.5)) < 0) {
+            throw new BizException("加班时长必须超过半小时!");
+        }
+        CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getEkpId, dto.getUserEkpId()).one();
+        if (Objects.isNull(user)) {
+            throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
+        }
+        // 判断区间内是否已有申请
+        boolean exists = overtimeRequestService.lambdaQuery()
+                .in(CmtOvertimeRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
+                .le(CmtOvertimeRequest::getBeginTime, dto.getEndTime())
+                .ge(CmtOvertimeRequest::getEndTime, dto.getBeginTime())
+                .eq(CmtOvertimeRequest::getOvertimeDate, dto.getOvertimeDate())
+                .eq(CmtOvertimeRequest::getUserId, user.getId())
+                .exists();
+        if (exists) {
+            throw new BizException("选择的时间段内已经提交过申请了！");
+        }
+        CmtOvertimeRequest record = BeanUtil.copyProperties(dto, CmtOvertimeRequest.class);
+        record.setUserId(user.getId());
+        record.setCreateBy(user.getId());
+        record.setStatus(dto.getStatus());
+        overtimeRequestService.save(record);
+    }
+
+    @Override
+    public void revokeOvertimeRequest(String id) {
+        CmtOvertimeRequest overtimeRequest = overtimeRequestService.getById(id);
+        if (Objects.isNull(overtimeRequest)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED.equals(overtimeRequest.getStatus())) {
+            throw new BizException("出差申请已审批通过，无法撤销！");
+        }
+        cmtEkpService.deleteEkpReview(overtimeRequest.getEkpReviewId());
+        overtimeRequestService.lambdaUpdate().set(CmtOvertimeRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.REVOKED)
+                .eq(CmtOvertimeRequest::getId, id)
+                .update();
+    }
+
+    @Override
+    public BigDecimal getCurrentUserOvertimeDuration(AttendOvertimeDurationQuery query) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUser();
+        query.setUserEkpId(loginUser.getEkpId());
+        return this.getOvertimeDurationByEkpUserId(query);
+    }
+
+    @Override
+    public List<AttendOvertimeRequestVO> getUserOvertimeRequestList() {
+        LocalDateTime sixMonthsAgo = LocalDateTime.now().minusMonths(6);
+        List<CmtOvertimeRequest> bizTripRequests = overtimeRequestService.lambdaQuery()
+                .eq(CmtOvertimeRequest::getUserId, authContext.getLoginUserId())
+                .ge(CmtOvertimeRequest::getCreateTime, sixMonthsAgo)
+                .orderByDesc(CmtOvertimeRequest::getCreateTime)
+                .list();
+        return BeanUtil.copyToList(bizTripRequests, AttendOvertimeRequestVO.class);
+    }
+
+    @Override
+    public AttendDurationBO calculateDurationOfAttend(String weComId, LocalDateTime beginTime, LocalDateTime endTime) {
+        if (StrUtil.isBlank(weComId) || Objects.isNull(beginTime) || Objects.isNull(endTime) || !endTime.isAfter(beginTime)) {
+            return buildAttendDurationBO(BigDecimal.ZERO, "0小时");
+        }
+
+        // 只取开始当天的考勤规则
+        LocalDate beginDate = beginTime.toLocalDate();
+        AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, beginDate);
+        if (rule == null || rule.getRuleType() == AttendRuleType.EMPTY) {
+            return buildAttendDurationBO(BigDecimal.ZERO, "0小时");
+        }
+
+        // 获取“用于计算时长”的时间段
+        String[][] attendCalcRanges = getLeaveCalcRanges(rule);
+
+        long totalMinutes = 0L;
+        LocalDate currentDate = beginDate;
         LocalDate endDate = endTime.toLocalDate();
 
+        // 只按开始当天规则，套用到整个区间的每一天
         while (!currentDate.isAfter(endDate)) {
-            // 逐天获取当天考勤规则
-            AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, currentDate);
-            if (rule == null || rule.getRuleType() == AttendRuleType.EMPTY) {
-                currentDate = currentDate.plusDays(1);
-                continue;
-            }
-
-            // 获取“用于计算请假时长”的时间段
-            String[][] leaveCalcRanges = getLeaveCalcRanges(rule);
-
-            for (String[] range : leaveCalcRanges) {
+            for (String[] range : attendCalcRanges) {
                 LocalDateTime workStart = LocalDateTime.of(currentDate, LocalTime.parse(range[0]));
                 LocalDateTime workEnd = LocalDateTime.of(currentDate, LocalTime.parse(range[1]));
 
-                // 请假区间与工作区间求交集
                 LocalDateTime actualStart = beginTime.isAfter(workStart) ? beginTime : workStart;
                 LocalDateTime actualEnd = endTime.isBefore(workEnd) ? endTime : workEnd;
 
                 if (actualEnd.isAfter(actualStart)) {
-                    long minutes = Duration.between(actualStart, actualEnd).toMinutes();
-                    totalMinutes = totalMinutes.add(BigDecimal.valueOf(minutes));
+                    totalMinutes += Duration.between(actualStart, actualEnd).toMinutes();
                 }
             }
-
             currentDate = currentDate.plusDays(1);
         }
 
-        return totalMinutes
+        BigDecimal duration = BigDecimal.valueOf(totalMinutes)
                 .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP)
                 .stripTrailingZeros();
+
+        // 格式化时也按开始当天的标准工时算
+        long standardMinutesPerDay = calculateRuleMinutes(attendCalcRanges);
+        String durationFormat = formatAttendDuration(totalMinutes, standardMinutesPerDay);
+
+        return buildAttendDurationBO(duration, durationFormat);
+    }
+
+    /**
+     * 计算某天考勤规则的总工时（分钟）
+     */
+    private long calculateRuleMinutes(String[][] ranges) {
+        long minutes = 0L;
+        for (String[] range : ranges) {
+            LocalTime start = LocalTime.parse(range[0]);
+            LocalTime end = LocalTime.parse(range[1]);
+            minutes += Duration.between(start, end).toMinutes();
+        }
+        return minutes;
+    }
+
+    /**
+     * 按规则动态格式化时长
+     * <p>
+     * 规则：
+     * 1. “1天”不是固定8.5小时，而是按当天考勤规则总工时算
+     * 2. 跨多天时，按每天规则工时依次折算
+     * 3. 只有“超过一天”才显示“天”
+     */
+    private String formatAttendDuration(long totalMinutes, long standardMinutesPerDay) {
+        if (totalMinutes <= 0) {
+            return "0小时";
+        }
+
+        if (standardMinutesPerDay <= 0) {
+            return formatHours(totalMinutes);
+        }
+
+        // 只有超过一天才显示“天”
+        if (totalMinutes < standardMinutesPerDay) {
+            return formatHours(totalMinutes);
+        }
+
+        long days = totalMinutes / standardMinutesPerDay;
+        long remainMinutes = totalMinutes % standardMinutesPerDay;
+
+        // 刚好整天时，如果你仍然想显示“17小时”而不是“2天”，这里要按你的业务决定
+        // 当前写法：超过一天就显示天
+        StringBuilder sb = new StringBuilder();
+        sb.append(days).append("天");
+        if (remainMinutes > 0) {
+            sb.append(formatHoursWithoutUnit(remainMinutes)).append("小时");
+        }
+        return sb.toString();
+    }
+
+    private String formatHours(long minutes) {
+        return formatHoursWithoutUnit(minutes) + "小时";
+    }
+
+    private String formatHoursWithoutUnit(long minutes) {
+        BigDecimal hours = BigDecimal.valueOf(minutes)
+                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP)
+                .stripTrailingZeros();
+        return hours.toPlainString();
+    }
+
+    private AttendDurationBO buildAttendDurationBO(BigDecimal duration, String durationFormat) {
+        AttendDurationBO bo = new AttendDurationBO();
+        bo.setDuration(duration);
+        bo.setDurationFormat(durationFormat);
+        return bo;
     }
 
     /**
@@ -585,7 +878,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 .collect(Collectors.toMap(
                         CmtAttendReissue::getCheckinTime,
                         CmtAttendReissue::getIsApproved,
-                        (a, b) -> a
+                        (a, _) -> a
                 ));
 
         return userAttend.stream()

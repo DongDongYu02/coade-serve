@@ -1,5 +1,7 @@
 package cn.dong.coade.modules.cmt.domain.entity;
 
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
@@ -22,14 +24,18 @@ public class CmtBizTripRequest {
 
     private BigDecimal duration;
 
+    private String durationFormat;
+
     private String reason;
 
     private String ekpReviewId;
 
     private Integer status;
 
+    @TableField(fill = FieldFill.INSERT)
     private String createBy;
 
+    @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 
 }

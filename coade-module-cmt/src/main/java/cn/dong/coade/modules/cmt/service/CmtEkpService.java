@@ -3,8 +3,10 @@ package cn.dong.coade.modules.cmt.service;
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.CmtLoginUser;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttachmentBO;
+import cn.dong.coade.modules.cmt.domain.dto.AttendBizTripRequestDTO;
 import cn.dong.coade.modules.cmt.domain.dto.AttendLeaveRequestDTO;
 import cn.dong.coade.modules.cmt.domain.dto.AttendOutgoingRequestDTO;
+import cn.dong.coade.modules.cmt.domain.dto.AttendOvertimeRequestDTO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
 import cn.dong.coade.modules.cmt.mapper.CmtEkpMapper;
 import cn.dong.nexus.common.constants.ApiConstants;
@@ -122,12 +124,15 @@ public class CmtEkpService {
         CoadeProperties.Ekp.Review.LeaveRequestField leaveRequestField = coadeProperties.getEkp().getReview().getLeaveRequestField();
         // 请假类型
         content.set(leaveRequestField.getType(), dto.getType());
+        content.set(leaveRequestField.getTypeText(), typeText);
         // 请假开始日期
         content.set(leaveRequestField.getBeginTime(), dto.getBeginTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
         // 请假结束日期
         content.set(leaveRequestField.getEndTime(), dto.getEndTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
         // 请假时长
         content.set(leaveRequestField.getDuration(), dto.getDuration().doubleValue());
+        // 请假时长显示值
+        content.set(leaveRequestField.getDurationFormat(), dto.getDurationFormat());
         // 请假原因
         content.set(leaveRequestField.getReason(), dto.getReason());
 
@@ -174,6 +179,8 @@ public class CmtEkpService {
     public void deleteEkpReview(String ekpReviewId) {
         cmtEkpMapper.deleteReviewAreader(ekpReviewId);
         cmtEkpMapper.deleteReviewOreader(ekpReviewId);
+        cmtEkpMapper.deleteReviewAeditor(ekpReviewId);
+        cmtEkpMapper.deleteReviewOeditor(ekpReviewId);
         cmtEkpMapper.deleteBookingReview(ekpReviewId);
         cmtEkpMapper.deleteReviewTodo(ekpReviewId);
     }
@@ -216,6 +223,95 @@ public class CmtEkpService {
         }
         if (JSONUtil.isTypeJSON(body)) {
             log.error("发起EKP外出流程失败:{}", body);
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        return body;
+    }
+
+    /**
+     * 启动出差申请审批流
+     */
+    public String startBizTripRequestReview(AttendBizTripRequestDTO dto, CmtLoginUser loginUser) {
+        String url = coadeProperties.getEkp().getServerUrl() + ApiConstants.INITIATE_EKP_REVIEW;
+        String templateId = coadeProperties.getEkp().getReview().getBizTripRequestReviewTemplateId();
+        String docCreator = buildUserFieldByEkpId(loginUser.getEkpId());
+        JSONObject content = new JSONObject();
+        CoadeProperties.Ekp.Review.BizTripRequestField bizTripRequestField = coadeProperties.getEkp().getReview().getBizTripRequestField();
+        // 出差开始时间
+        content.set(bizTripRequestField.getBeginTime(), dto.getBeginTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
+        // 出差结束时间
+        content.set(bizTripRequestField.getEndTime(), dto.getEndTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
+        // 出差时长
+        content.set(bizTripRequestField.getDuration(), dto.getDuration().doubleValue());
+        // 出差时长显示值
+        content.set(bizTripRequestField.getDurationFormat(), dto.getDurationFormat());
+        // 出差事由
+        content.set(bizTripRequestField.getReason(), dto.getReason());
+        MultiValueMap<String, Object> wholeForm = new LinkedMultiValueMap<>();
+        wholeForm.add("docCreator", docCreator);
+        wholeForm.add("docStatus", 20);
+        wholeForm.add("fdTemplateId", templateId);
+        wholeForm.add("formValues", content.toJSONString(1));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(wholeForm, headers);
+
+        String body;
+        try {
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            body = exchange.getBody();
+        } catch (RestClientException e) {
+            log.error("发起EKP出差流程失败:{}", e.getMessage());
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        if (JSONUtil.isTypeJSON(body)) {
+            log.error("发起EKP出差流程失败:{}", body);
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        return body;
+    }
+
+    /**
+     * 发起加班审批流
+     */
+    public String startOvertimeRequestReview(AttendOvertimeRequestDTO dto, CmtLoginUser loginUser) {
+        String url = coadeProperties.getEkp().getServerUrl() + ApiConstants.INITIATE_EKP_REVIEW;
+        String templateId = coadeProperties.getEkp().getReview().getOvertimeRequestReviewTemplateId();
+        String docSubject = StrUtil.format("{}提交的加班申请", loginUser.getUsername());
+        String docCreator = buildUserFieldByEkpId(loginUser.getEkpId());
+        JSONObject content = new JSONObject();
+        CoadeProperties.Ekp.Review.OvertimeRequestField overtimeRequestField = coadeProperties.getEkp().getReview().getOvertimeRequestField();
+        // 加班日期
+        content.set(overtimeRequestField.getOvertimeDate(), dto.getOvertimeDate().format(GlobalConstants.DateFormat.NORMAL_ONLY_DATE));
+        // 加班开始时间
+        content.set(overtimeRequestField.getBeginTime(), dto.getBeginTime().format(GlobalConstants.DateFormat.TIME));
+        // 加班结束时间
+        content.set(overtimeRequestField.getEndTime(), dto.getEndTime().format(GlobalConstants.DateFormat.TIME));
+        // 加班时长
+        content.set(overtimeRequestField.getDuration(), dto.getDuration().doubleValue());
+        // 加班事由
+        content.set(overtimeRequestField.getReason(), dto.getReason());
+
+        MultiValueMap<String, Object> wholeForm = new LinkedMultiValueMap<>();
+        wholeForm.add("docSubject", docSubject);
+        wholeForm.add("docCreator", docCreator);
+        wholeForm.add("docStatus", 20);
+        wholeForm.add("fdTemplateId", templateId);
+        wholeForm.add("formValues", content.toJSONString(1));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(wholeForm, headers);
+
+        String body;
+        try {
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            body = exchange.getBody();
+        } catch (RestClientException e) {
+            log.error("发起EKP加班流程失败:{}", e.getMessage());
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        if (JSONUtil.isTypeJSON(body)) {
+            log.error("发起EKP加班流程失败:{}", body);
             throw new BizException(ApiMessage.INTERNAL_ERROR);
         }
         return body;

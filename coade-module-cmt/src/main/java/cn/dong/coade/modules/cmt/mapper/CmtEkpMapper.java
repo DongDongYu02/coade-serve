@@ -52,6 +52,16 @@ public interface CmtEkpMapper {
     void deleteReviewOreader(@Param("reviewId") String reviewId);
 
     @Delete("""
+            delete FROM km_review_main_oeditor WHERE fd_doc_id = #{reviewId}
+            """)
+    void deleteReviewOeditor(@Param("reviewId") String reviewId);
+
+    @Delete("""
+            delete FROM km_review_main_aeditor WHERE fd_doc_id = #{reviewId}
+            """)
+    void deleteReviewAeditor(@Param("reviewId") String reviewId);
+
+    @Delete("""
             delete FROM sys_notify_todo WHERE fd_model_id = #{reviewId}
             """)
     void deleteReviewTodo(@Param("reviewId") String reviewId);

@@ -38,9 +38,13 @@ public class CoadeProperties {
         public static class Review {
             private String leaveRequestReviewTemplateId;
             private String outgoingRequestReviewTemplateId;
+            private String bizTripRequestReviewTemplateId;
+            private String overtimeRequestReviewTemplateId;
             private _6sField cmt6sField;
             private LeaveRequestField leaveRequestField;
             private OutgoingRequestField outgoingRequestField;
+            private BizTripRequestField bizTripRequestField;
+            private OvertimeRequestField overtimeRequestField;
 
             @Data
             public static class _6sField {
@@ -52,10 +56,12 @@ public class CoadeProperties {
             @Data
             public static class LeaveRequestField {
                 private String type;
+                private String typeText;
                 private String beginTime;
                 private String endTime;
                 private String duration;
                 private String reason;
+                private String durationFormat;
             }
 
             @Data
@@ -63,6 +69,24 @@ public class CoadeProperties {
                 private String outDate;
                 private String outTimeBegin;
                 private String outTimeEnd;
+                private String duration;
+                private String reason;
+            }
+
+            @Data
+            public static class BizTripRequestField {
+                private String beginTime;
+                private String endTime;
+                private String duration;
+                private String durationFormat;
+                private String reason;
+            }
+
+            @Data
+            public static class OvertimeRequestField {
+                private String overtimeDate;
+                private String beginTime;
+                private String endTime;
                 private String duration;
                 private String reason;
             }

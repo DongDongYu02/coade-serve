@@ -18,13 +18,17 @@ coade:
     review:
       leave-request-review-template-id: 19d9f3dc59beae8a74db4794ab091f63
       outgoing-request-review-template-id: 19da9cb5e0295a4f254f8414e7fa4362
+      biz-trip-request-review-template-id: 19daeb202de92c3248436c446a4abcfd
+      overtime-request-review-template-id: 19db93f6b857f21efe6fcce4a429272a
       cmt6s-field:
         att-key: fd_3eacbfdab74dd2
         description: fd_3e8b06cf4a9d4c
         problem-id: fd_3f1ad4ee6829bc
       leave-request-field:
-        type: fd_3f1d2f3d6173a8
-        duration: fd_3f1d1d446d2428
+        type: fd_3f2120adfccb0c
+        type-text: fd_3f2120adfccb0c_text
+        duration: fd_3f1f80f37d8318
+        duration-format: fd_3f1d1d446d2428
         begin-time: fd_3f1d1cba9e5276
         end-time: fd_3f1d1cc04b34c4
         reason: fd_3ceda385caa300
@@ -32,6 +36,18 @@ coade:
         out-date: fd_3f1eb8a9c50760
         out-time-begin: fd_3f1d1cba9e5276
         out-time-end: fd_3f1d1cc04b34c4
+        duration: fd_3f1d1d446d2428
+        reason: fd_3ceda385caa300
+      biz-trip-request-field:
+        begin-time: fd_3f1d1cba9e5276
+        end-time: fd_3f1d1cc04b34c4
+        duration: fd_3f20dd56ab627e
+        duration-format: fd_3f1d1d446d2428
+        reason: fd_3ceda385caa300
+      overtime-request-field:
+        overtime-date: fd_3f21ca4316a884
+        begin-time: fd_3f1d1cba9e5276
+        end-time: fd_3f1d1cc04b34c4
         duration: fd_3f1d1d446d2428
         reason: fd_3ceda385caa300
     att-base-path: D:/landray/kmss/resource/

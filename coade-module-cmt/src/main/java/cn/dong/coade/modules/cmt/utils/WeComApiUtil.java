@@ -109,6 +109,7 @@ public class WeComApiUtil {
         // 补卡后的打卡记录
         List<UserAttendRecordVO> reissueRecords = getReissueRecords(weComId, dateBegin, dateEnd);
         checkinRecords.addAll(reissueRecords);
+
         return CollUtil.distinct(checkinRecords);
     }
 

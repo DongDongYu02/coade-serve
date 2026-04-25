@@ -1,5 +1,5 @@
 
-package cn.dong.coade.modules.cmt.utils;
+package cn.dong.coade.modules.cmt.support;
 
 import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
@@ -60,7 +60,14 @@ public class AttendRecordCalculator {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("HH:mm");
 
     /**
+     * 无需打卡日期展示状态
+     */
+    private static final String NO_NEED_CHECKIN_STATUS = "无需打卡";
+
+    /**
      * 计算指定日期的考勤结果
+     *
+     * 兼容旧调用：默认没有“无需打卡日期”配置。
      */
     public List<UserAttendRecordVO> calculate(LocalDate attendDate,
                                               List<UserAttendRecordVO> actualRecords,
@@ -68,6 +75,34 @@ public class AttendRecordCalculator {
                                               List<EkpAttendBusinessBO> leaveInfos,
                                               List<EkpAttendBusinessBO> outInfos,
                                               List<EkpAttendBusinessBO> tripInfos) {
+        return calculate(
+                attendDate,
+                actualRecords,
+                rule,
+                leaveInfos,
+                outInfos,
+                tripInfos,
+                Collections.emptySet()
+        );
+    }
+
+    /**
+     * 计算指定日期的考勤结果
+     *
+     * @param noNeedCheckinDates 无需打卡日期配置。命中后，不再生成规则点，也不再判迟到/早退/缺卡。
+     */
+    public List<UserAttendRecordVO> calculate(LocalDate attendDate,
+                                              List<UserAttendRecordVO> actualRecords,
+                                              AttendRuleBO rule,
+                                              List<EkpAttendBusinessBO> leaveInfos,
+                                              List<EkpAttendBusinessBO> outInfos,
+                                              List<EkpAttendBusinessBO> tripInfos,
+                                              Collection<LocalDate> noNeedCheckinDates) {
+
+        // 无需打卡日期优先级最高：命中后直接返回“无需打卡”，不再按规则计算异常。
+        if (isNoNeedCheckinDate(attendDate, noNeedCheckinDates)) {
+            return buildNoNeedCheckinResult(attendDate, actualRecords);
+        }
 
         if (rule == null) {
             return sortRawRecords(actualRecords);
@@ -95,6 +130,7 @@ public class AttendRecordCalculator {
         return matchPoints(points, punches, attendDate);
     }
 
+
     /**
      * 计算今日考勤
      */
@@ -103,7 +139,62 @@ public class AttendRecordCalculator {
                                                    List<EkpAttendBusinessBO> leaveInfos,
                                                    List<EkpAttendBusinessBO> outInfos,
                                                    List<EkpAttendBusinessBO> tripInfos) {
-        return calculate(LocalDate.now(), actualRecords, rule, leaveInfos, outInfos, tripInfos);
+        return calculate(LocalDate.now(), actualRecords, rule, leaveInfos, outInfos, tripInfos, Collections.emptySet());
+    }
+
+    /**
+     * 计算今日考勤
+     *
+     * @param noNeedCheckinDates 无需打卡日期配置。命中今天时，不再生成规则点，也不再判迟到/早退/缺卡。
+     */
+    public List<UserAttendRecordVO> calculateToday(List<UserAttendRecordVO> actualRecords,
+                                                   AttendRuleBO rule,
+                                                   List<EkpAttendBusinessBO> leaveInfos,
+                                                   List<EkpAttendBusinessBO> outInfos,
+                                                   List<EkpAttendBusinessBO> tripInfos,
+                                                   Collection<LocalDate> noNeedCheckinDates) {
+        return calculate(LocalDate.now(), actualRecords, rule, leaveInfos, outInfos, tripInfos, noNeedCheckinDates);
+    }
+
+
+    /**
+     * 判断当前日期是否配置为无需打卡
+     */
+    private boolean isNoNeedCheckinDate(LocalDate attendDate, Collection<LocalDate> noNeedCheckinDates) {
+        return attendDate != null
+                && CollUtil.isNotEmpty(noNeedCheckinDates)
+                && noNeedCheckinDates.contains(attendDate);
+    }
+
+    /**
+     * 构造无需打卡日期的返回结果。
+     *
+     * 说明：
+     * 1. 当天有实际打卡记录时，保留实际打卡时间和地点，但统一标记为“无需打卡”，避免进入异常统计。
+     * 2. 当天没有实际打卡记录时，返回一条占位记录，方便前端展示“无需打卡”。
+     * 3. 如果前端不需要占位行，可以把本方法改成直接 return sortRawRecords(actualRecords)。
+     */
+    private List<UserAttendRecordVO> buildNoNeedCheckinResult(LocalDate attendDate,
+                                                              List<UserAttendRecordVO> actualRecords) {
+        List<UserAttendRecordVO> rawRecords = sortRawRecords(actualRecords);
+        if (CollUtil.isNotEmpty(rawRecords)) {
+            for (UserAttendRecordVO record : rawRecords) {
+                record.setRuleCheckinTime(record.getCheckinTime());
+                record.setStatus(NO_NEED_CHECKIN_STATUS);
+                if (StrUtil.isBlank(record.getLocation())) {
+                    record.setLocation("-");
+                }
+            }
+            return rawRecords;
+        }
+
+        UserAttendRecordVO vo = new UserAttendRecordVO();
+        String time = attendDate.atStartOfDay().format(DATE_TIME_FMT);
+        vo.setCheckinTime(time);
+        vo.setRuleCheckinTime(time);
+        vo.setLocation("-");
+        vo.setStatus(NO_NEED_CHECKIN_STATUS);
+        return Collections.singletonList(vo);
     }
 
     /**

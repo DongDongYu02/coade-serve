@@ -11,30 +11,27 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Data
-@Schema(description = "请假申请EKP回调 DTO")
-public class AttendLeaveRequestEkpCallbackDTO {
-    @Schema(description = "请假类型 2事假 3病假")
-    @NotNull
-    private Integer type;
+@Schema(description = "出差申请EKP回调 DTO")
+public class AttendBizTripRequestEkpCallbackDTO {
 
-    @Schema(description = "请假开始时间")
+    @Schema(description = "出差开始时间")
     @NotNull
     @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
     private LocalDateTime beginTime;
 
-    @Schema(description = "请假结束时间")
+    @Schema(description = "出差结束时间")
     @NotNull
     @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
     private LocalDateTime endTime;
 
-    @Schema(description = "请假原因")
+    @Schema(description = "外出事由")
     @NotBlank
     private String reason;
 
-    @Schema(description = "请假时长")
+    @Schema(description = "出差时长")
     private BigDecimal duration;
 
-    @Schema(description = "请假时长显示值")
+    @Schema(description = "出差时长显示值")
     private String durationFormat;
 
     @Schema(description = "用户EKPID")

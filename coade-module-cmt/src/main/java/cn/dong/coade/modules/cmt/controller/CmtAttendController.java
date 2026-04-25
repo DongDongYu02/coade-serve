@@ -3,11 +3,10 @@ package cn.dong.coade.modules.cmt.controller;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.query.AttendLeaveDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
-import cn.dong.coade.modules.cmt.domain.vo.AttendLeaveRequestVO;
-import cn.dong.coade.modules.cmt.domain.vo.AttendOutgoingRequestVO;
-import cn.dong.coade.modules.cmt.domain.vo.UserAttendInfoVO;
-import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
+import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
+import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
+import cn.dong.coade.modules.cmt.support.aspect.annotation.EkpCallbackValid;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
 import cn.dong.nexus.infra.util.RedisUtil;
@@ -101,6 +100,21 @@ public class CmtAttendController {
         return Result.success();
     }
 
+    @PostMapping("/biz-trip/request")
+    @Operation(summary = "提交出差申请")
+    public Result<Void> addBizTripRequest(@RequestBody @Validated AttendBizTripRequestDTO dto) {
+        attendService.addBizTripRequest(dto);
+        return Result.success();
+    }
+
+    @PostMapping("/overtime/request")
+    @Operation(summary = "提交加班申请")
+    public Result<Void> addOvertimeRequest(@RequestBody @Validated AttendOvertimeRequestDTO dto) {
+        attendService.addOvertimeRequest(dto);
+        return Result.success();
+    }
+
+
     @PostMapping("/leave-request/revoke/{id}")
     @Operation(summary = "撤销请假申请")
     public Result<Void> revokeLeaveRequest(@PathVariable String id) {
@@ -115,44 +129,48 @@ public class CmtAttendController {
         return Result.success();
     }
 
+    @PostMapping("/biz-trip-request/revoke/{id}")
+    @Operation(summary = "撤销出差申请")
+    public Result<Void> revokeBizTripRequest(@PathVariable String id) {
+        attendService.revokeBizTripRequest(id);
+        return Result.success();
+    }
+
+    @PostMapping("/overtime-request/revoke/{id}")
+    @Operation(summary = "撤销加班申请")
+    public Result<Void> revokeOvertimeRequest(@PathVariable String id) {
+        attendService.revokeOvertimeRequest(id);
+        return Result.success();
+    }
+
     @GetMapping("/ekp/leave-duration")
     @Operation(summary = "EKP获取考勤工时")
-    public Result<BigDecimal> getLeaveDurationForEkp(@ParameterObject AttendLeaveDurationQuery query, @RequestParam("access_token") String accessToken) {
-        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
-        if (Objects.isNull(token)) {
-            return Result.error("ekp callback accessToken has expired!");
-        }
-        if (!String.valueOf(token).equals(accessToken)) {
-            return Result.error("ekp callback accessToken is invalid!");
-        }
-        BigDecimal duration = attendService.getLeaveDurationByEkpUserId(query.getUserEkpId(), query.getBeginTime(), query.getEndTime());
+    @EkpCallbackValid
+    public Result<AttendDurationVO> getLeaveDurationForEkp(@ParameterObject AttendLeaveDurationQuery query) {
+        AttendDurationVO duration = attendService.getAttendDurationByEkpUserId(query.getUserEkpId(), query.getBeginTime(), query.getEndTime());
         return Result.success(duration);
     }
 
     @GetMapping("/ekp/outgoing-duration")
     @Operation(summary = "EKP获取外出工时")
-    public Result<BigDecimal> getOutgoingDurationForEkp(@ParameterObject AttendOutgoingDurationQuery query, @RequestParam("access_token") String accessToken) {
-        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
-        if (Objects.isNull(token)) {
-            return Result.error("ekp callback accessToken has expired!");
-        }
-        if (!String.valueOf(token).equals(accessToken)) {
-            return Result.error("ekp callback accessToken is invalid!");
-        }
-        BigDecimal duration = attendService.getOutgoingDurationByEkpUserId(query);
+    @EkpCallbackValid
+    public Result<AttendDurationVO> getOutgoingDurationForEkp(@ParameterObject AttendOutgoingDurationQuery query) {
+        AttendDurationVO duration = attendService.getOutgoingDurationByEkpUserId(query);
+        return Result.success(duration);
+    }
+
+    @GetMapping("/ekp/overtime-duration")
+    @Operation(summary = "EKP获取加班工时")
+    @EkpCallbackValid
+    public Result<BigDecimal> getOvertimeDurationForEkp(@ParameterObject AttendOvertimeDurationQuery query) {
+        BigDecimal duration = attendService.getOvertimeDurationByEkpUserId(query);
         return Result.success(duration);
     }
 
     @PostMapping("/ekp/outgoing-request/callback")
     @Operation(summary = "EKP外出流程审批回调")
-    public Result<Void> ekpOutgoingRequestCallback(@RequestBody String body, @RequestParam("access_token") String accessToken) {
-        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
-        if (Objects.isNull(token)) {
-            return Result.error("ekp callback accessToken has expired!");
-        }
-        if (!String.valueOf(token).equals(accessToken)) {
-            return Result.error("ekp callback accessToken is invalid!");
-        }
+    @EkpCallbackValid
+    public Result<Void> ekpOutgoingRequestCallback(@RequestBody String body) {
         AttendOutgoingRequestEkpCallbackDTO dto = JSONUtil.toBean(body, AttendOutgoingRequestEkpCallbackDTO.class);
         attendService.saveOrUpdateOutgoingRequestStatus(dto);
         return Result.success();
@@ -160,16 +178,28 @@ public class CmtAttendController {
 
     @PostMapping("/ekp/leave-request/callback")
     @Operation(summary = "EKP请假流程审批回调")
-    public Result<Void> ekpLeaveRequestCallback(@RequestBody String body, @RequestParam("access_token") String accessToken) {
-        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
-        if (Objects.isNull(token)) {
-            return Result.error("ekp callback accessToken has expired!");
-        }
-        if (!String.valueOf(token).equals(accessToken)) {
-            return Result.error("ekp callback accessToken is invalid!");
-        }
+    @EkpCallbackValid
+    public Result<Void> ekpLeaveRequestCallback(@RequestBody String body) {
         AttendLeaveRequestEkpCallbackDTO dto = JSONUtil.toBean(body, AttendLeaveRequestEkpCallbackDTO.class);
         attendService.saveOrUpdateLeaveRequestStatus(dto);
+        return Result.success();
+    }
+
+    @PostMapping("/ekp/biz-trip-request/callback")
+    @Operation(summary = "EKP出差流程审批回调")
+    @EkpCallbackValid
+    public Result<Void> ekpBizTripRequestCallback(@RequestBody String body) {
+        AttendBizTripRequestEkpCallbackDTO dto = JSONUtil.toBean(body, AttendBizTripRequestEkpCallbackDTO.class);
+        attendService.saveOrUpdateBizTripRequestStatus(dto);
+        return Result.success();
+    }
+
+    @PostMapping("/ekp/overtime-request/callback")
+    @Operation(summary = "EKP加班流程审批回调")
+    @EkpCallbackValid
+    public Result<Void> ekpOvertimeRequestCallback(@RequestBody String body) {
+        AttendOvertimeRequestEkpCallbackDTO dto = JSONUtil.toBean(body, AttendOvertimeRequestEkpCallbackDTO.class);
+        attendService.saveOrUpdateOvertimeRequestStatus(dto);
         return Result.success();
     }
 
@@ -182,8 +212,15 @@ public class CmtAttendController {
 
     @GetMapping("/leave-duration")
     @Operation(summary = "获取当前用户考勤工时")
-    public Result<BigDecimal> getLeaveDuration(@ParameterObject AttendLeaveDurationQuery query) {
-        BigDecimal duration = attendService.getCurrentUserLeaveDuration(query.getBeginTime(), query.getEndTime());
+    public Result<AttendDurationVO> getLeaveDuration(@ParameterObject AttendLeaveDurationQuery query) {
+        AttendDurationVO duration = attendService.getCurrentUserLeaveDuration(query.getBeginTime(), query.getEndTime());
+        return Result.success(duration);
+    }
+
+    @GetMapping("/overtime-duration")
+    @Operation(summary = "获取当前用户加班工时")
+    public Result<BigDecimal> getOvertimeDuration(@ParameterObject AttendOvertimeDurationQuery query) {
+        BigDecimal duration = attendService.getCurrentUserOvertimeDuration(query);
         return Result.success(duration);
     }
 
@@ -198,6 +235,20 @@ public class CmtAttendController {
     @Operation(summary = "当前用户请假记录列表")
     public Result<List<AttendLeaveRequestVO>> getUserLeaveRequestList() {
         List<AttendLeaveRequestVO> records = attendService.getUserLeaveRequestList();
+        return Result.success(records);
+    }
+
+    @GetMapping("/user/biz-trip/list")
+    @Operation(summary = "当前用户出差记录列表")
+    public Result<List<AttendBizTripRequestVO>> getUserBizTripRequestList() {
+        List<AttendBizTripRequestVO> records = attendService.getUserBizTripRequestList();
+        return Result.success(records);
+    }
+
+    @GetMapping("/user/overtime/list")
+    @Operation(summary = "当前用户加班记录列表")
+    public Result<List<AttendOvertimeRequestVO>> getUserOvertimeRequestList() {
+        List<AttendOvertimeRequestVO> records = attendService.getUserOvertimeRequestList();
         return Result.success(records);
     }
 

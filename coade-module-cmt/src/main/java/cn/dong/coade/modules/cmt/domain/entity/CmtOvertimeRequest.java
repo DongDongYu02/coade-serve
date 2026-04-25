@@ -6,12 +6,17 @@ import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 
 @Data
-@TableName("cmt_leave_request")
-public class CmtLeaveRequest {
+@TableName("cmt_overtime_request")
+public class CmtOvertimeRequest {
 
+    /**
+     * ID
+     */
     private String id;
 
     /**
@@ -25,28 +30,27 @@ public class CmtLeaveRequest {
     private String userEkpId;
 
     /**
-     * 请假类别 2事假 3病假
+     * 加班日期
      */
-    private Integer type;
+    private LocalDate overtimeDate;
 
     /**
-     * 请假开始时间
+     * 开始时间
      */
-    private LocalDateTime beginTime;
+    private LocalTime beginTime;
 
     /**
-     * 请假结束时间
+     * 结束时间
      */
-    private LocalDateTime endTime;
+    private LocalTime endTime;
 
     /**
-     * 请假时长
+     * 加班时长
      */
     private BigDecimal duration;
-    private String durationFormat;
 
     /**
-     * 请假原因
+     * 加班事由
      */
     private String reason;
 
@@ -71,4 +75,5 @@ public class CmtLeaveRequest {
      */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
+
 }

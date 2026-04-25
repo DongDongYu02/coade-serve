@@ -1,11 +1,10 @@
 package cn.dong.coade.modules.cmt.service;
 
+import cn.dong.coade.modules.cmt.domain.bo.AttendDurationBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
-import cn.dong.coade.modules.cmt.domain.vo.AttendLeaveRequestVO;
-import cn.dong.coade.modules.cmt.domain.vo.AttendOutgoingRequestVO;
-import cn.dong.coade.modules.cmt.domain.vo.UserAttendInfoVO;
-import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
+import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
+import cn.dong.coade.modules.cmt.domain.vo.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -20,14 +19,14 @@ public interface ICmtAttendService {
 
     UserAttendInfoVO getUserAttendByDate(int year, int month, int day);
 
-    BigDecimal getCurrentUserLeaveDuration(LocalDateTime beginTime, LocalDateTime endTime);
+    AttendDurationVO getCurrentUserLeaveDuration(LocalDateTime beginTime, LocalDateTime endTime);
 
-    BigDecimal getLeaveDurationByEkpUserId(String ekpUserId, LocalDateTime beginTime, LocalDateTime endTime);
+    AttendDurationVO getAttendDurationByEkpUserId(String ekpUserId, LocalDateTime beginTime, LocalDateTime endTime);
 
     /**
      * 计算考勤时长
      */
-    BigDecimal calculateDurationOfAttend(String weComId, LocalDateTime beginTime, LocalDateTime endTime);
+    AttendDurationBO calculateDurationOfAttend(String weComId, LocalDateTime beginTime, LocalDateTime endTime);
 
     /**
      * 获取用户的考勤规则
@@ -84,7 +83,7 @@ public interface ICmtAttendService {
     /**
      * 查询用户外出工时
      */
-    BigDecimal getOutgoingDurationByEkpUserId(AttendOutgoingDurationQuery query);
+    AttendDurationVO getOutgoingDurationByEkpUserId(AttendOutgoingDurationQuery query);
 
     /**
      * 新增外出申请
@@ -110,4 +109,54 @@ public interface ICmtAttendService {
      * 撤销请假申请
      */
     void revokeOutgoingRequest(String id);
+
+    /**
+     * 提交出差申请
+     */
+    void addBizTripRequest(AttendBizTripRequestDTO dto);
+
+    /**
+     * EKP回调更新出差审批状态或新增出差申请
+     */
+    void saveOrUpdateBizTripRequestStatus(AttendBizTripRequestEkpCallbackDTO dto);
+
+    /**
+     * 获取用户出差申请记录
+     */
+    List<AttendBizTripRequestVO> getUserBizTripRequestList();
+
+    /**
+     * 撤销出差申请
+     */
+    void revokeBizTripRequest(String id);
+
+    /**
+     * 提交加班申请
+     */
+    void addOvertimeRequest(AttendOvertimeRequestDTO dto);
+
+    /**
+     * EKP查询用户加班时长
+     */
+    BigDecimal getOvertimeDurationByEkpUserId(AttendOvertimeDurationQuery query);
+
+    /**
+     * EKP回调更新加班审批状态或新增加班申请
+     */
+    void saveOrUpdateOvertimeRequestStatus(AttendOvertimeRequestEkpCallbackDTO dto);
+
+    /**
+     * 撤销加班申请
+     */
+    void revokeOvertimeRequest(String id);
+
+    /**
+     * 获取当前用户的加班时长
+     */
+    BigDecimal getCurrentUserOvertimeDuration(AttendOvertimeDurationQuery query);
+
+    /**
+     * 用户加班申请列表
+     */
+    List<AttendOvertimeRequestVO> getUserOvertimeRequestList();
 }

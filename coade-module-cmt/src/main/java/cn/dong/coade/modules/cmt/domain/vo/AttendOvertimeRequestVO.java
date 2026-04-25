@@ -10,8 +10,8 @@ import java.time.LocalDate;
 import java.time.LocalTime;
 
 @Data
-@Schema(description = "请假申请记录 VO")
-public class AttendOutgoingRequestVO {
+@Schema(description = "加班申请记录 VO")
+public class AttendOvertimeRequestVO {
 
     @Schema(description = "ID")
     private String id;
@@ -19,24 +19,23 @@ public class AttendOutgoingRequestVO {
     @Schema(description = "用户ID")
     private String userId;
 
-    @Schema(description = "外出日期 yyyy-MM-dd")
-    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDate outDate;
+    @Schema(description = "加班日期")
+    private LocalDate overtimeDate;
 
-    @Schema(description = "外出开始时间 HH:mm")
+    @Schema(description = "加班开始时间 yyyy-MM-dd HH:mm")
     @JsonFormat(pattern = GlobalConstants.DatePattern.TIME, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalTime outTimeBegin;
+    private LocalTime beginTime;
 
-    @Schema(description = "结束结束时间 HH:mm")
+    @Schema(description = "加班结束时间 yyyy-MM-dd HH:mm")
     @JsonFormat(pattern = GlobalConstants.DatePattern.TIME, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalTime outTimeEnd;
+    private LocalTime endTime;
 
-    @Schema(description = "请假时长")
+    @Schema(description = "加班时长")
     private BigDecimal duration;
 
     @Schema(description = "状态 0审批中 1审批通过 2审批驳回 3已撤销")
     private Integer status;
 
-    @Schema(description = "外出事由")
+    @Schema(description = "加班事由")
     private String reason;
 }

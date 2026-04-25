@@ -3,6 +3,7 @@ package cn.dong.nexus.core.handler;
 import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.api.Result;
 import cn.dong.nexus.core.exception.BizException;
+import cn.dong.nexus.core.util.HttpRequestUtil;
 import cn.hutool.core.text.StrJoiner;
 import cn.hutool.core.util.StrUtil;
 import io.swagger.v3.oas.annotations.Hidden;
@@ -32,15 +33,20 @@ public class GlobalExceptionHandler {
     private static final String VALID_MUST_NOT_BLANK = "不能为空";
 
     private static final String VALID_CONVERT_ERROR = "格式错误";
+
     @PostConstruct
     public void init() {
         log.info("SaTokenExceptionHandler loaded");
     }
+
     /**
      * 业务异常处理
      **/
     @ExceptionHandler(BizException.class)
-    public Result<Void> handleException(BizException e) {
+    public Result<Void> handleException(BizException e, HttpServletRequest  request) {
+        String params = HttpRequestUtil.buildParams(request);
+        String body = HttpRequestUtil.getRequestBody(request);
+        log.error("业务异常:'{}' uri:{} params:{} body:{} --> {}", e.getMessage(),request.getRequestURI(),params,body,e.getStackTrace()[0]);
         if (Objects.isNull(e.getCode())) {
             return Result.error(e.getMessage());
         }
@@ -74,8 +80,6 @@ public class GlobalExceptionHandler {
     }
 
 
-
-
     /**
      * Validation异常处理
      **/
@@ -91,7 +95,7 @@ public class GlobalExceptionHandler {
                 return Result.error(e.getMessage());
             }
             if (defaultMessage.equals(VALID_MUST_NOT_NULL) ||
-                defaultMessage.equals(VALID_MUST_NOT_BLANK)) {
+                    defaultMessage.equals(VALID_MUST_NOT_BLANK)) {
                 return Result.error(argument.getCode() + VALID_MUST_NOT_BLANK);
             }
             return Result.error(defaultMessage);
@@ -103,7 +107,7 @@ public class GlobalExceptionHandler {
                     Objects.requireNonNull(error.getArguments())[0];
             if (StrUtil.isNotBlank(defaultMessage)) {
                 if (defaultMessage.equals(VALID_MUST_NOT_NULL) ||
-                    defaultMessage.equals(VALID_MUST_NOT_BLANK)) {
+                        defaultMessage.equals(VALID_MUST_NOT_BLANK)) {
                     sj.append(argument.getCode() + VALID_MUST_NOT_BLANK);
                     continue;
                 }
@@ -121,8 +125,10 @@ public class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(NoResourceFoundException.class)
-    public Result<Void> handleAllException(Exception e) {
-        log.error(e.getMessage());
+    public Result<Void> handleAllException(Exception e,HttpServletRequest request) {
+        String params = HttpRequestUtil.buildParams(request);
+        String body = HttpRequestUtil.getRequestBody(request);
+        log.error("业务异常:'{}' uri:{} params:{} body:{} --> {}", e.getMessage(),request.getRequestURI(),params,body,e.getStackTrace()[0]);
         return Result.error(ApiMessage.NOT_FOUND);
     }
 
@@ -131,8 +137,10 @@ public class GlobalExceptionHandler {
      * 全局异常处理
      **/
     @ExceptionHandler(Exception.class)
-    public Result<Void> handleException(Exception e) {
-        log.error(e.getMessage(), e);
+    public Result<Void> handleException(Exception e,HttpServletRequest request) {
+        String params = HttpRequestUtil.buildParams(request);
+        String body = HttpRequestUtil.getRequestBody(request);
+        log.error("业务异常:'{}' uri:{} params:{} body:{} --> {}", e.getMessage(),request.getRequestURI(),params,body,e.getStackTrace()[0]);
         return Result.error(ApiMessage.INTERNAL_ERROR);
     }
 
