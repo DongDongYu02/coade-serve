@@ -20,6 +20,8 @@ coade:
       outgoing-request-review-template-id: 19da9cb5e0295a4f254f8414e7fa4362
       biz-trip-request-review-template-id: 19daeb202de92c3248436c446a4abcfd
       overtime-request-review-template-id: 19db93f6b857f21efe6fcce4a429272a
+      attend-reissue-review-template-id: 16be9d5fc79ef23244153e6457b9483a
+      attend-special-case-reissue-review-template-id: 19dbed0b5cea10f591a146041c18c13f
       cmt6s-field:
         att-key: fd_3eacbfdab74dd2
         description: fd_3e8b06cf4a9d4c
@@ -49,6 +51,16 @@ coade:
         begin-time: fd_3f1d1cba9e5276
         end-time: fd_3f1d1cc04b34c4
         duration: fd_3f1d1d446d2428
+        reason: fd_3ceda385caa300
+      attend-reissue-field:
+        checkin-time: fd_3eb701f7efa0f8
+        rule-checkin-time: fd_3efc2f191ad740
+        reissue-type: fd_3eb7020398c5c4
+        reason: fd_3ceda385caa300
+      attend-special-case-reissue-field:
+        checkin-time: fd_3eb701f7efa0f8
+        rule-checkin-time: fd_3efc2f191ad740
+        reissue-type: fd_3eb7020398c5c4
         reason: fd_3ceda385caa300
     att-base-path: D:/landray/kmss/resource/
   attend-device-sn:

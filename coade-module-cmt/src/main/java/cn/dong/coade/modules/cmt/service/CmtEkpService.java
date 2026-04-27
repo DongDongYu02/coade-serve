@@ -3,11 +3,9 @@ package cn.dong.coade.modules.cmt.service;
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.CmtLoginUser;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttachmentBO;
-import cn.dong.coade.modules.cmt.domain.dto.AttendBizTripRequestDTO;
-import cn.dong.coade.modules.cmt.domain.dto.AttendLeaveRequestDTO;
-import cn.dong.coade.modules.cmt.domain.dto.AttendOutgoingRequestDTO;
-import cn.dong.coade.modules.cmt.domain.dto.AttendOvertimeRequestDTO;
+import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
+import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
 import cn.dong.coade.modules.cmt.mapper.CmtEkpMapper;
 import cn.dong.nexus.common.constants.ApiConstants;
 import cn.dong.nexus.common.constants.GlobalConstants;
@@ -315,5 +313,51 @@ public class CmtEkpService {
             throw new BizException(ApiMessage.INTERNAL_ERROR);
         }
         return body;
+    }
+
+    public String startAttendReissueReview(ReissueAttendDTO dto, CmtUser cmtUser) {
+        String url = coadeProperties.getEkp().getServerUrl() + ApiConstants.INITIATE_EKP_REVIEW;
+        boolean isSpecialCase = GlobalConstants.INT_YES.equals(dto.getIsSpecialCase());
+        String templateId = isSpecialCase ?
+                coadeProperties.getEkp().getReview().getAttendSpecialCaseReissueReviewTemplateId() :
+                coadeProperties.getEkp().getReview().getAttendReissueReviewTemplateId();
+        String docCreator = buildUserFieldByEkpId(cmtUser.getEkpId());
+        String docSubject = StrUtil.format("{}的打卡异常处理申请", cmtUser.getUsername());
+        JSONObject content = new JSONObject();
+        CoadeProperties.Ekp.Review.AttendReissueField attendReissueField = coadeProperties.getEkp().getReview().getAttendReissueField();
+        CoadeProperties.Ekp.Review.AttendSpecialCaseReissueField attendSpecialCaseReissueField = coadeProperties.getEkp().getReview().getAttendSpecialCaseReissueField();
+        // 打卡时间
+        content.set(isSpecialCase ? attendSpecialCaseReissueField.getCheckinTime() : attendReissueField.getCheckinTime(), dto.getCheckinTime());
+        // 规则打卡时间
+        content.set(isSpecialCase ? attendSpecialCaseReissueField.getRuleCheckinTime() : attendReissueField.getRuleCheckinTime(), dto.getRuleCheckinTime());
+        // 异常原因
+        content.set(isSpecialCase ? attendSpecialCaseReissueField.getReason() : attendReissueField.getReason(), dto.getReason());
+        // 异常状态
+        content.set(isSpecialCase ? attendSpecialCaseReissueField.getReissueType() : attendReissueField.getReissueType(), dto.getReissueType());
+
+        MultiValueMap<String, Object> wholeForm = new LinkedMultiValueMap<>();
+        wholeForm.add("docSubject", docSubject);
+        wholeForm.add("docCreator", docCreator);
+        wholeForm.add("docStatus", 20);
+        wholeForm.add("fdTemplateId", templateId);
+        wholeForm.add("formValues", content.toJSONString(1));
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
+        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(wholeForm, headers);
+
+        String body;
+        try {
+            ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
+            body = exchange.getBody();
+        } catch (RestClientException e) {
+            log.error("发起EKP补卡流程失败:{}", e.getMessage());
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        if (JSONUtil.isTypeJSON(body)) {
+            log.error("发起EKP补卡流程失败:{}", body);
+            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        }
+        return body;
+
     }
 }

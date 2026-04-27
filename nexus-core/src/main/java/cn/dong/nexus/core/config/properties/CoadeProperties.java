@@ -40,11 +40,31 @@ public class CoadeProperties {
             private String outgoingRequestReviewTemplateId;
             private String bizTripRequestReviewTemplateId;
             private String overtimeRequestReviewTemplateId;
+            private String attendReissueReviewTemplateId;
+            private String attendSpecialCaseReissueReviewTemplateId;
             private _6sField cmt6sField;
             private LeaveRequestField leaveRequestField;
             private OutgoingRequestField outgoingRequestField;
             private BizTripRequestField bizTripRequestField;
             private OvertimeRequestField overtimeRequestField;
+            private AttendReissueField attendReissueField;
+            private AttendSpecialCaseReissueField attendSpecialCaseReissueField;
+
+            @Data
+            public static class AttendReissueField {
+                private String checkinTime;
+                private String ruleCheckinTime;
+                private String reason;
+                private String reissueType;
+            }
+            @Data
+            public static class AttendSpecialCaseReissueField {
+                private String checkinTime;
+                private String ruleCheckinTime;
+                private String reason;
+                private String reissueType;
+            }
+
 
             @Data
             public static class _6sField {

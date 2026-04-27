@@ -16,6 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -50,6 +51,10 @@ public class AttendLeaveRequestDTO extends BaseDTO<CmtLeaveRequest> {
     @Override
     public void doValidate() {
         super.doValidate();
+        // 请假开始时间必须在今天之后
+        if (beginTime.isBefore(LocalDate.now().atStartOfDay())) {
+            throw new BizException("请假申请必须当天或提前提交，若要补单请提交纸质申请单！");
+        }
         String userId = SpringUtil.getBean(IAuthContext.class).getLoginUserOrThrow().getId();
         // 判断请假区间内是否已有请假申请
         boolean exists = Db.lambdaQuery(CmtLeaveRequest.class)

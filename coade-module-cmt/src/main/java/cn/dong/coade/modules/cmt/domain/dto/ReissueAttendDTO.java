@@ -26,4 +26,7 @@ public class ReissueAttendDTO {
 
     @Schema(description = "本系统cmt用户id")
     private String cmtUserId;
+
+    @Schema(description = "是否特殊情况")
+    private Integer isSpecialCase;
 }

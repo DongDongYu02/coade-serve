@@ -37,7 +37,7 @@ public class WeComServiceImpl implements IWeComService {
         WeComUserInfoDTO weComUserInfo = WeComApiUtil.getUserInfo(dto.getCode());
 //        WeComUserInfoDTO weComUserInfo = new WeComUserInfoDTO();
 //        weComUserInfo.setAvatar("https://wework.qpic.cn/wwpic/850073_Rdvw2E97RC6aRUi_1667200914/0");
-//        weComUserInfo.setUserId("DaiYangFan");
+//        weComUserInfo.setUserId("YouLinXiao");
         CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getWeComId, weComUserInfo.getUserId()).one();
         if (Objects.isNull(user)) {
             String username = WeComApiUtil.getUsername(weComUserInfo.getUserId());

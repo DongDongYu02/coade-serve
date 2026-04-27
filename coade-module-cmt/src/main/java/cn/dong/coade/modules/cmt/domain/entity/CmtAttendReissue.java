@@ -29,6 +29,8 @@ public class CmtAttendReissue {
 
     private String reason;
 
+    private Integer isSpecialCase;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

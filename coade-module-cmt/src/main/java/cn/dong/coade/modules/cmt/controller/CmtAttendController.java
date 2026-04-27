@@ -7,9 +7,7 @@ import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
 import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
 import cn.dong.coade.modules.cmt.support.aspect.annotation.EkpCallbackValid;
-import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.api.Result;
-import cn.dong.nexus.infra.util.RedisUtil;
 import cn.hutool.json.JSONUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Objects;
 
 @Slf4j
 @RestController
@@ -55,14 +52,8 @@ public class CmtAttendController {
 
     @PostMapping("/reissue-apply/callback")
     @Operation(summary = "补卡申请通过 ekp回调")
-    public Result<Void> reissueAttendApplyCallBack(@RequestBody String body, @RequestParam("access_token") String accessToken) {
-        Object token = RedisUtil.get(GlobalConstants.CacheKey.EKP_PROVIDE_TOKEN);
-        if (Objects.isNull(token)) {
-            return Result.error("ekp callback accessToken has expired!");
-        }
-        if (!String.valueOf(token).equals(accessToken)) {
-            return Result.error("ekp callback accessToken is invalid!");
-        }
+    @EkpCallbackValid
+    public Result<Void> reissueAttendApplyCallBack(@RequestBody String body) {
         AttendReissueApplyPassDTO dto = JSONUtil.toBean(body, AttendReissueApplyPassDTO.class);
         attendService.doReissueAttend(dto);
         return Result.success();
@@ -251,6 +242,7 @@ public class CmtAttendController {
         List<AttendOvertimeRequestVO> records = attendService.getUserOvertimeRequestList();
         return Result.success(records);
     }
+
 
 
 }

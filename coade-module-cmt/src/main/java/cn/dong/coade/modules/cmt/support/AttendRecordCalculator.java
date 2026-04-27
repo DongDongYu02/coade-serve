@@ -789,18 +789,26 @@ public class AttendRecordCalculator {
             ActualPunch matched = matchedIndex == null ? null : punches.get(matchedIndex);
 
             // 固定业务状态：请假 / 出差 / 外出
+            // 这类规则点只用于展示业务状态，不再绑定真实打卡记录。
+            //
+            // 原因：
+            // 例如规则为 08:00-11:30、12:30-17:30，请假 08:00-12:30，
+            // 员工 12:23 提前回岗打卡。
+            //
+            // 旧逻辑会让 11:30 的“请假”点吃掉 12:23，导致出现：
+            // 12:23 请假
+            // 12:23 正常
+            //
+            // 正确逻辑应该是：
+            // 08:00 请假
+            // 11:30 请假
+            // 12:23 正常
+            //
+            // 所以固定业务状态点直接按规则点时间展示，不占用真实打卡。
             if (StrUtil.isNotBlank(current.getFixedStatus())) {
-                if (matched != null) {
-                    vo.setCheckinTime(matched.getTime().format(DATE_TIME_FMT));
-                    vo.setRuleCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
-                    vo.setLocation(matched.getLocation());
-                    vo.setExceptionStatus(matched.getExceptionStatus());
-                    vo.setIsReissue(matched.getIsReissue());
-                } else {
-                    vo.setCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
-                    vo.setRuleCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
-                    vo.setLocation("-");
-                }
+                vo.setCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
+                vo.setRuleCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
+                vo.setLocation("-");
                 vo.setStatus(current.getFixedStatus());
                 result.add(vo);
                 continue;

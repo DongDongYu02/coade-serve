@@ -122,6 +122,11 @@ public interface GlobalConstants {
         Integer LEAVE = 5;
 
         /**
+         * 假勤类型 加班
+         */
+        Integer OVERTIME = 6;
+
+        /**
          * 假勤类型 外出
          */
         Integer OUTGOING = 7;

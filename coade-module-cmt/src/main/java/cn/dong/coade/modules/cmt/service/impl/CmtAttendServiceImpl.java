@@ -8,6 +8,7 @@ import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.*;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
+import cn.dong.coade.modules.cmt.domain.query.AttendMonthDataQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
 import cn.dong.coade.modules.cmt.domain.vo.*;
@@ -80,7 +81,8 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     private static final String ATTEND_REISSUE_EKP_REVIEW_TEMPLATE_ID = "16be9d5fc79ef23244153e6457b9483a";
 
     private static final Set<LocalDate> noNeedCheckinDates = Set.of(
-            LocalDate.of(2026, 4, 4)
+            LocalDate.of(2026, 4, 4),
+            LocalDate.of(2026, 4, 5)
     );
 
 
@@ -112,7 +114,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, now);
 //        String[][] range = {{"08:00", "11:30"}, {"12:30", "17:30"}};
 //        EkpAttendRuleBO rule =   new EkpAttendRuleBO(range,new int[]{1,2,3,4,5,6},AttendRuleType.FIXED);
-        if (Objects.isNull(rule) || noNeedCheckinDates.contains(now)) {
+        if (Objects.isNull(rule) || AttendRuleType.EMPTY.equals(rule.getRuleType()) || noNeedCheckinDates.contains(now)) {
             userAttend.forEach(item -> item.setStatus("正常"));
             return new UserAttendInfoVO("无需打卡", userAttend, new UserLeaveAttendVO());
         }
@@ -276,7 +278,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         List<UserAttendRecordVO> result = new ArrayList<>();
 
         for (LocalDate day = monthStart; !day.isAfter(queryEndDate); day = day.plusDays(1)) {
-            if(noNeedCheckinDates.contains(day)){
+            if (noNeedCheckinDates.contains(day)) {
                 continue;
             }
             AttendRuleBO rule = dayRuleMap.get(day.getDayOfMonth());
@@ -601,7 +603,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 new OvertimeDurationCalculator(attendRuleService::getUserAttendRule);
         LocalDateTime beginTime = dto.getOvertimeDate().atTime(dto.getBeginTime());
         LocalDateTime endTime = dto.getOvertimeDate().atTime(dto.getEndTime());
-        AttendDurationBO durationBO = calculator.calculateDurationOfOvertime(loginUser.getWeComId(), beginTime, endTime);
+        AttendDurationBO durationBO = calculator.calculateDurationOfOvertime(loginUser.getWeComId(), beginTime, endTime, noNeedCheckinDates);
         if (durationBO.getDuration().compareTo(BigDecimal.valueOf(0.5)) < 0) {
             throw new BizException("加班时长必须超过半小时!");
         }
@@ -630,7 +632,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 new OvertimeDurationCalculator(attendRuleService::getUserAttendRule);
         LocalDateTime beginTime = query.getOvertimeDate().atTime(query.getBeginTime());
         LocalDateTime endTime = query.getOvertimeDate().atTime(query.getEndTime());
-        return calculator.calculateDurationOfOvertime(user.getWeComId(), beginTime, endTime).getDuration();
+        return calculator.calculateDurationOfOvertime(user.getWeComId(), beginTime, endTime, noNeedCheckinDates).getDuration();
     }
 
     @Override
@@ -702,6 +704,580 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 .orderByDesc(CmtOvertimeRequest::getCreateTime)
                 .list();
         return BeanUtil.copyToList(bizTripRequests, AttendOvertimeRequestVO.class);
+    }
+
+    @Override
+    public List<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query) {
+        CmtUser user = cmtUserService.lambdaQuery()
+                .eq(CmtUser::getId, query.getUserId())
+                .one();
+
+        if (Objects.isNull(user)) {
+            throw new BizException(ApiMessage.USER_NOT_FOUND);
+        }
+
+        LocalDate monthStart = LocalDate.of(query.getYear(), query.getMonth(), 1);
+        LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
+
+        LocalDate today = LocalDate.now();
+
+        LocalDateTime beginTime = monthStart.atStartOfDay();
+        LocalDateTime endTime = LocalDateTime.of(monthEnd, LocalTime.of(23, 59, 59));
+
+        // 1. 获取本月所有原始打卡记录
+        // 如果你本地方法名是 getCheckinRecords，也可以换回：
+        // List<UserAttendRecordVO> checkinRecords = WeComApiUtil.getCheckinRecords(user.getWeComId(), beginTime, endTime);
+        List<UserAttendRecordVO> checkinRecords = WeComApiUtil.getUserAttend(
+                user.getWeComId(),
+                beginTime,
+                endTime
+        );
+
+        // 2. 获取本月每日考勤规则，key = day
+        Map<Integer, AttendRuleBO> dayRuleMap = attendRuleService.getUserAttendRuleByMonth(
+                user.getWeComId(),
+                query.getYear(),
+                query.getMonth()
+        );
+
+        CmtAttendServiceImpl _this = SpringUtil.getBean(this.getClass());
+
+        // 3. 获取本月请假 / 出差 / 外出 / 补卡 / 加班记录
+        List<EkpAttendBusinessBO> leaveInfo = List.of();
+        List<EkpAttendBusinessBO> tripInfo = List.of();
+        List<EkpAttendBusinessBO> outInfo = List.of();
+        List<EkpAttendBusinessBO> overtimeInfo = List.of();
+        List<CmtAttendReissue> attendReissues = List.of();
+
+        if (StrUtil.isNotBlank(user.getEkpId())) {
+            leaveInfo = _this.getAttendBizRecords(
+                    user.getEkpId(),
+                    beginTime,
+                    endTime,
+                    GlobalConstants.EkpLeaveBizType.LEAVE
+            );
+
+            tripInfo = _this.getAttendBizRecords(
+                    user.getEkpId(),
+                    beginTime,
+                    endTime,
+                    GlobalConstants.EkpLeaveBizType.BIZ_TRIP
+            );
+
+            outInfo = _this.getAttendBizRecords(
+                    user.getEkpId(),
+                    beginTime,
+                    endTime,
+                    GlobalConstants.EkpLeaveBizType.OUTGOING
+            );
+
+            attendReissues = attendReissueService.getUserReissueRecordsByTimeRange(
+                    user.getEkpId(),
+                    beginTime,
+                    endTime
+            );
+            outInfo = _this.getAttendBizRecords(
+                    user.getEkpId(),
+                    beginTime,
+                    endTime,
+                    GlobalConstants.EkpLeaveBizType.OVERTIME
+            );
+        }
+
+        // 4. 原始打卡记录按日期分组
+        Map<LocalDate, List<UserAttendRecordVO>> dayRecordMap = CollUtil.emptyIfNull(checkinRecords)
+                .stream()
+                .filter(item -> StrUtil.isNotBlank(item.getCheckinTime()))
+                .collect(Collectors.groupingBy(item ->
+                        LocalDateTimeUtil.parse(item.getCheckinTime(), "yyyy-MM-dd HH:mm").toLocalDate()
+                ));
+
+        AttendMonthDataVO monthDataVO = new AttendMonthDataVO();
+        monthDataVO.setUserId(user.getId());
+        monthDataVO.setWeComId(user.getWeComId());
+
+        List<AttendMonthDataVO.DayCase> dayCases = new ArrayList<>();
+
+        // 出勤天数累计
+        BigDecimal attendDays = BigDecimal.ZERO;
+
+        // 请假天数累计
+        BigDecimal leaveDays = BigDecimal.ZERO;
+
+        // 实际出勤分钟数，用于格式化成 x天x小时x分钟
+        long attendMinutes = 0L;
+
+        // 请假分钟数，用于格式化成 x天x小时x分钟
+        long leaveMinutes = 0L;
+
+        // 用于格式化时判断“一天”等于多少分钟
+        long formatStandardDayMinutes = 0L;
+
+        // 5. 遍历本月每天
+        for (LocalDate day = monthStart; !day.isAfter(monthEnd); day = day.plusDays(1)) {
+            AttendMonthDataVO.DayCase dayCase = new AttendMonthDataVO.DayCase();
+            dayCase.setDay(day.getDayOfMonth());
+
+            List<String> dayData = new ArrayList<>();
+
+            // 5.1 当天业务记录
+            List<EkpAttendBusinessBO> dayLeaveInfo = filterBizByDay(leaveInfo, day);
+            List<EkpAttendBusinessBO> dayTripInfo = filterBizByDay(tripInfo, day);
+            List<EkpAttendBusinessBO> dayOutInfo = filterBizByDay(outInfo, day);
+
+            // 先展示业务记录
+            dayData.addAll(buildMonthBizTexts("请假", dayLeaveInfo));
+            dayData.addAll(buildMonthBizTexts("出差", dayTripInfo));
+            dayData.addAll(buildMonthBizTexts("外出", dayOutInfo));
+
+            // 未来日期不计算考勤，也不累计出勤天数
+            if (day.isAfter(today)) {
+                if (dayData.isEmpty()) {
+                    dayData.add("未开始");
+                }
+                dayCase.setData(dayData);
+                dayCases.add(dayCase);
+                continue;
+            }
+
+            // 手动无需打卡日期
+            if (noNeedCheckinDates.contains(day)) {
+                if (dayData.isEmpty()) {
+                    dayData.add("无需打卡");
+                }
+                dayCase.setData(dayData);
+                dayCases.add(dayCase);
+                continue;
+            }
+
+            // 5.2 获取当天考勤规则
+            AttendRuleBO rule = CollUtil.isEmpty(dayRuleMap)
+                    ? null
+                    : dayRuleMap.get(day.getDayOfMonth());
+
+            if (Objects.isNull(rule)) {
+                rule = attendRuleService.getUserAttendRule(user.getWeComId(), day);
+            }
+
+            if (Objects.isNull(rule) || AttendRuleType.EMPTY.equals(rule.getRuleType())) {
+                if (dayData.isEmpty()) {
+                    dayData.add("无需打卡");
+                }
+                dayCase.setData(dayData);
+                dayCases.add(dayCase);
+                continue;
+            }
+
+            // 5.3 当天原始打卡记录
+            List<UserAttendRecordVO> dayActualRecords = new ArrayList<>(
+                    dayRecordMap.getOrDefault(day, Collections.emptyList())
+            );
+
+            // 5.4 当天补卡记录
+            List<CmtAttendReissue> dayReissues = filterReissuesByDay(attendReissues, day);
+
+            // 先过滤掉“补卡审批通过后由企微新增的原始打卡”
+            dayActualRecords = removeApprovedReissueGeneratedPunch(dayActualRecords, dayReissues);
+
+            // 5.5 记录一个标准工作日分钟数，用于最后格式化
+            // 普通班次比如 08:00-11:30、12:30-17:30，就是 510 分钟
+            // 注塑部 IMD 会按 getLeaveCalcRanges(rule) 计算
+            long currentStandardMinutes = calculateStandardWorkMinutes(rule);
+            if (formatStandardDayMinutes <= 0 && currentStandardMinutes > 0) {
+                formatStandardDayMinutes = currentStandardMinutes;
+            }
+
+            // 5.6 计算当天请假天数和请假分钟数
+            // 请假不依赖是否打卡，只要落在当天工作时间段内，就累计
+            long dayLeaveMinutes = calculateDayLeaveMinutes(
+                    dayLeaveInfo,
+                    rule,
+                    day
+            );
+            leaveMinutes += dayLeaveMinutes;
+
+            BigDecimal dayLeaveDays = calculateDayLeaveDays(
+                    dayLeaveMinutes,
+                    currentStandardMinutes
+            );
+            leaveDays = leaveDays.add(dayLeaveDays);
+
+            // 5.7 计算当天出勤天数
+            // 规则：当天有一次真实打卡，基础算 1 天；如果当天有请假，再按请假时长扣减
+            BigDecimal dayAttendDays = calculateDayAttendDays(
+                    dayActualRecords,
+                    dayLeaveInfo,
+                    rule,
+                    day
+            );
+            attendDays = attendDays.add(dayAttendDays);
+
+            // 5.8 累计实际出勤分钟数，用于格式化展示
+            long dayAttendMinutes = calculateDayAttendMinutes(
+                    dayActualRecords,
+                    dayLeaveInfo,
+                    rule,
+                    day
+            );
+            attendMinutes += dayAttendMinutes;
+
+            // 5.9 复用现有考勤计算器，得到当天完整打卡状态
+            List<UserAttendRecordVO> dayCalculated = attendRecordCalculator.calculate(
+                    day,
+                    dayActualRecords,
+                    rule,
+                    dayLeaveInfo,
+                    dayOutInfo,
+                    dayTripInfo
+            );
+
+            // 5.10 回填补卡审批状态
+            applyReissueStatus(dayCalculated, dayReissues);
+
+            // 5.11 组装当天打卡文案
+            dayCalculated.stream()
+                    .sorted(Comparator.comparing(this::resolveSortTime))
+                    .map(this::buildMonthAttendRecordText)
+                    .filter(StrUtil::isNotBlank)
+                    .forEach(dayData::add);
+
+            if (dayData.isEmpty()) {
+                dayData.add("无考勤数据");
+            }
+
+            dayCase.setData(dayData);
+            dayCases.add(dayCase);
+        }
+
+        monthDataVO.setDayCases(dayCases);
+
+        monthDataVO.setAttendDays(attendDays.setScale(2, RoundingMode.HALF_UP));
+        monthDataVO.setAttendDaysText(formatAttendDurationMore(attendMinutes, formatStandardDayMinutes));
+
+        monthDataVO.setLeaveDays(leaveDays.setScale(2, RoundingMode.HALF_UP));
+        monthDataVO.setLeaveDaysText(formatAttendDurationMore(leaveMinutes, formatStandardDayMinutes));
+
+        return List.of(monthDataVO);
+    }
+
+    /**
+     * 格式化月考勤时长
+     * <p>
+     * example:
+     * 21天2小时30分钟
+     * 21天2小时
+     * 30分钟
+     * 1天
+     * -
+     */
+    private String formatAttendDurationMore(long totalMinutes, long standardDayMinutes) {
+        if (totalMinutes <= 0) {
+            return "-";
+        }
+
+        // 兜底：如果没有取到标准工作日分钟数，按 8 小时算
+        if (standardDayMinutes <= 0) {
+            standardDayMinutes = 8 * 60L;
+        }
+
+        long days = totalMinutes / standardDayMinutes;
+        long remainMinutes = totalMinutes % standardDayMinutes;
+
+        long hours = remainMinutes / 60;
+        long minutes = remainMinutes % 60;
+
+        StringBuilder sb = new StringBuilder();
+
+        if (days > 0) {
+            sb.append(days).append("天");
+        }
+        if (hours > 0) {
+            sb.append(hours).append("小时");
+        }
+        if (minutes > 0) {
+            sb.append(minutes).append("分钟");
+        }
+
+        return sb.length() == 0 ? "-" : sb.toString();
+    }
+
+    /**
+     * 计算当天请假分钟数。
+     * <p>
+     * 只统计请假落在当天工作时间段内的分钟数。
+     * 例如普通班次 08:00-11:30、12:30-17:30：
+     * 请假 11:00-13:00，只会统计 11:00-11:30 和 12:30-13:00。
+     */
+    private long calculateDayLeaveMinutes(List<EkpAttendBusinessBO> dayLeaveInfo,
+                                          AttendRuleBO rule,
+                                          LocalDate day) {
+        if (CollUtil.isEmpty(dayLeaveInfo) || Objects.isNull(rule)) {
+            return 0L;
+        }
+
+        long standardWorkMinutes = calculateStandardWorkMinutes(rule);
+        if (standardWorkMinutes <= 0) {
+            return 0L;
+        }
+
+        long leaveMinutes = calculateLeaveMinutesInWorkRanges(dayLeaveInfo, rule, day);
+        if (leaveMinutes <= 0) {
+            return 0L;
+        }
+
+        // 防止重复请假记录导致一天请假超过标准工作时长
+        return Math.min(leaveMinutes, standardWorkMinutes);
+    }
+
+    /**
+     * 根据请假分钟数折算请假天数。
+     */
+    private BigDecimal calculateDayLeaveDays(long dayLeaveMinutes, long standardWorkMinutes) {
+        if (dayLeaveMinutes <= 0 || standardWorkMinutes <= 0) {
+            return BigDecimal.ZERO;
+        }
+
+        return BigDecimal.valueOf(dayLeaveMinutes)
+                .divide(BigDecimal.valueOf(standardWorkMinutes), 4, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * 计算当天实际出勤分钟数
+     * 规则：
+     * 1. 当天有至少一次真实打卡，基础出勤分钟 = 当天标准工作分钟
+     * 2. 当天没有真实打卡，出勤分钟 = 0
+     * 3. 有请假时，扣减请假落在工作时段内的分钟数
+     * 4. 最低不小于0
+     */
+    private long calculateDayAttendMinutes(List<UserAttendRecordVO> actualRecords,
+                                           List<EkpAttendBusinessBO> dayLeaveInfo,
+                                           AttendRuleBO rule,
+                                           LocalDate day) {
+        boolean hasActualPunch = CollUtil.isNotEmpty(actualRecords)
+                && actualRecords.stream()
+                .anyMatch(item -> StrUtil.isNotBlank(item.getCheckinTime()));
+
+        if (!hasActualPunch) {
+            return 0L;
+        }
+
+        long standardWorkMinutes = calculateStandardWorkMinutes(rule);
+
+        if (standardWorkMinutes <= 0) {
+            return 0L;
+        }
+
+        if (CollUtil.isEmpty(dayLeaveInfo)) {
+            return standardWorkMinutes;
+        }
+
+        long leaveMinutes = calculateLeaveMinutesInWorkRanges(dayLeaveInfo, rule, day);
+
+        if (leaveMinutes <= 0) {
+            return standardWorkMinutes;
+        }
+
+        leaveMinutes = Math.min(leaveMinutes, standardWorkMinutes);
+
+        return Math.max(standardWorkMinutes - leaveMinutes, 0L);
+    }
+
+
+    /**
+     * 计算当天出勤天数
+     * <p>
+     * 规则：
+     * 1. 当天有至少一次真实打卡，基础出勤 = 1天
+     * 2. 当天没有真实打卡，出勤 = 0天
+     * 3. 有请假时，按 请假时长 / 当天应出勤时长 折算扣减
+     * 4. 最低不小于0
+     */
+    private BigDecimal calculateDayAttendDays(List<UserAttendRecordVO> actualRecords,
+                                              List<EkpAttendBusinessBO> dayLeaveInfo,
+                                              AttendRuleBO rule,
+                                              LocalDate day) {
+        boolean hasActualPunch = CollUtil.isNotEmpty(actualRecords)
+                && actualRecords.stream()
+                .anyMatch(item -> StrUtil.isNotBlank(item.getCheckinTime()));
+
+        // 没有真实打卡，不算出勤
+        if (!hasActualPunch) {
+            return BigDecimal.ZERO;
+        }
+
+        // 有打卡、无请假，直接算 1 天
+        if (CollUtil.isEmpty(dayLeaveInfo)) {
+            return BigDecimal.ONE;
+        }
+
+        // 当天标准出勤分钟数
+        long standardWorkMinutes = calculateStandardWorkMinutes(rule);
+
+        if (standardWorkMinutes <= 0) {
+            return BigDecimal.ONE;
+        }
+
+        // 请假落在当天工作时段内的分钟数
+        long leaveMinutes = calculateLeaveMinutesInWorkRanges(dayLeaveInfo, rule, day);
+
+        if (leaveMinutes <= 0) {
+            return BigDecimal.ONE;
+        }
+
+        // 防止重复请假记录导致扣减超过 1 天
+        leaveMinutes = Math.min(leaveMinutes, standardWorkMinutes);
+
+        BigDecimal leaveDays = BigDecimal.valueOf(leaveMinutes)
+                .divide(BigDecimal.valueOf(standardWorkMinutes), 4, RoundingMode.HALF_UP);
+
+        BigDecimal result = BigDecimal.ONE.subtract(leaveDays);
+
+        if (result.compareTo(BigDecimal.ZERO) < 0) {
+            return BigDecimal.ZERO;
+        }
+
+        return result;
+    }
+
+    /**
+     * 计算当天标准工作分钟数
+     */
+    private long calculateStandardWorkMinutes(AttendRuleBO rule) {
+        if (Objects.isNull(rule)) {
+            return 0L;
+        }
+
+        String[][] ranges = getLeaveCalcRanges(rule);
+
+        if (ranges == null || ranges.length == 0) {
+            return 0L;
+        }
+
+        long minutes = 0L;
+
+        for (String[] range : ranges) {
+            if (range == null || range.length < 2) {
+                continue;
+            }
+
+            LocalTime start = LocalTime.parse(range[0]);
+            LocalTime end = LocalTime.parse(range[1]);
+
+            if (end.isAfter(start)) {
+                minutes += Duration.between(start, end).toMinutes();
+            }
+        }
+
+        return minutes;
+    }
+
+    /**
+     * 计算请假在当天工作时间段内占用的分钟数
+     */
+    private long calculateLeaveMinutesInWorkRanges(List<EkpAttendBusinessBO> dayLeaveInfo,
+                                                   AttendRuleBO rule,
+                                                   LocalDate day) {
+        if (CollUtil.isEmpty(dayLeaveInfo) || Objects.isNull(rule)) {
+            return 0L;
+        }
+
+        String[][] ranges = getLeaveCalcRanges(rule);
+
+        if (ranges == null || ranges.length == 0) {
+            return 0L;
+        }
+
+        long totalLeaveMinutes = 0L;
+
+        for (EkpAttendBusinessBO leave : dayLeaveInfo) {
+            if (Objects.isNull(leave)
+                    || Objects.isNull(leave.getStartTime())
+                    || Objects.isNull(leave.getEndTime())) {
+                continue;
+            }
+
+            LocalDateTime leaveStart = leave.getStartTime();
+            LocalDateTime leaveEnd = leave.getEndTime();
+
+            for (String[] range : ranges) {
+                if (range == null || range.length < 2) {
+                    continue;
+                }
+
+                LocalDateTime workStart = LocalDateTime.of(day, LocalTime.parse(range[0]));
+                LocalDateTime workEnd = LocalDateTime.of(day, LocalTime.parse(range[1]));
+
+                LocalDateTime overlapStart = leaveStart.isAfter(workStart) ? leaveStart : workStart;
+                LocalDateTime overlapEnd = leaveEnd.isBefore(workEnd) ? leaveEnd : workEnd;
+
+                if (overlapEnd.isAfter(overlapStart)) {
+                    totalLeaveMinutes += Duration.between(overlapStart, overlapEnd).toMinutes();
+                }
+            }
+        }
+
+        return totalLeaveMinutes;
+    }
+
+    /**
+     * 构建月考勤业务记录文案：请假 / 外出 / 出差
+     */
+    private List<String> buildMonthBizTexts(String bizName, List<EkpAttendBusinessBO> records) {
+        if (CollUtil.isEmpty(records)) {
+            return List.of();
+        }
+
+        return records.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getStartTime() != null && item.getEndTime() != null)
+                .sorted(Comparator.comparing(EkpAttendBusinessBO::getStartTime))
+                .map(item -> StrUtil.format(
+                        "{} {} ~ {}",
+                        bizName,
+                        formatMonthAttendDateTime(item.getStartTime()),
+                        formatMonthAttendDateTime(item.getEndTime())
+                ))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 构建月考勤打卡记录文案
+     * <p>
+     * example:
+     * 07:30 正常
+     * 11:34 正常
+     * 12:30 上班缺卡
+     */
+    private String buildMonthAttendRecordText(UserAttendRecordVO record) {
+        if (Objects.isNull(record)) {
+            return "";
+        }
+
+        String timeText = "";
+
+        if (StrUtil.isNotBlank(record.getCheckinTime())) {
+            timeText = LocalDateTimeUtil.parse(record.getCheckinTime(), "yyyy-MM-dd HH:mm")
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        } else if (StrUtil.isNotBlank(record.getRuleCheckinTime())) {
+            timeText = LocalDateTimeUtil.parse(record.getRuleCheckinTime(), "yyyy-MM-dd HH:mm")
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm"));
+        }
+
+        String status = StrUtil.blankToDefault(record.getStatus(), "正常");
+
+        if (StrUtil.isBlank(timeText)) {
+            return status;
+        }
+
+        return StrUtil.format("{} {}", timeText, status);
+    }
+
+    private String formatMonthAttendDateTime(LocalDateTime dateTime) {
+        if (Objects.isNull(dateTime)) {
+            return "";
+        }
+
+        return dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
     }
 
     @Override
@@ -1010,16 +1586,18 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         if (Objects.isNull(cmtUser)) {
             throw new BizException(ApiMessage.USER_NOT_FOUND);
         }
-        DateTime checkinDate = DateUtil.parse(dto.getRuleCheckinTime(), "yyyy-MM-dd HH:mm");
-        DateTime monthBegin = DateUtil.beginOfMonth(checkinDate);
-        DateTime monthEnd = DateUtil.endOfMonth(checkinDate);
-        Long count = attendReissueService.lambdaQuery()
-                .eq(CmtAttendReissue::getEkpUserId, cmtUser.getEkpId())
-                .between(CmtAttendReissue::getRuleCheckinTime, monthBegin, monthEnd)
-                .ne(CmtAttendReissue::getIsApproved, GlobalConstants.AttendReissueApprovalResult.REJECTED)
-                .count();
-        if (count >= 3) {
-            throw new BizException("当月补卡次数已用完!");
+        if (GlobalConstants.INT_NO.equals(dto.getIsSpecialCase())) {
+            DateTime checkinDate = DateUtil.parse(dto.getRuleCheckinTime(), "yyyy-MM-dd HH:mm");
+            DateTime monthBegin = DateUtil.beginOfMonth(checkinDate);
+            DateTime monthEnd = DateUtil.endOfMonth(checkinDate);
+            Long count = attendReissueService.lambdaQuery()
+                    .eq(CmtAttendReissue::getEkpUserId, cmtUser.getEkpId())
+                    .between(CmtAttendReissue::getRuleCheckinTime, monthBegin, monthEnd)
+                    .ne(CmtAttendReissue::getIsApproved, GlobalConstants.AttendReissueApprovalResult.REJECTED)
+                    .count();
+            if (count >= 3) {
+                throw new BizException("当月补卡次数已用完!");
+            }
         }
         boolean exists = attendReissueService.lambdaQuery().eq(CmtAttendReissue::getCmtUserId, dto.getCmtUserId())
                 .eq(CmtAttendReissue::getRuleCheckinTime, dto.getRuleCheckinTime())
@@ -1033,18 +1611,17 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         attendReissue.setEkpUserId(cmtUser.getEkpId());
 
         // 向EKP 发起审批
-        String ekpReviewId = this.initiateReissueToEkpReview(dto, cmtUser);
+        String ekpReviewId = cmtEkpService.startAttendReissueReview(dto, cmtUser);
 
         attendReissue.setEkpReviewId(ekpReviewId);
         attendReissueService.save(attendReissue);
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void reissueAttendApplyForLoginUser(ReissueAttendDTO dto) {
         LoginUser loginUser = authContext.getLoginUserOrThrow();
         dto.setCmtUserId(loginUser.getId());
-        this.reissueAttendApply(dto);
+        SpringUtil.getBean(this.getClass()).reissueAttendApply(dto);
     }
 
     @Override
@@ -1052,23 +1629,21 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     public void doReissueAttend(AttendReissueApplyPassDTO dto) {
         CmtAttendReissue attendReissue = attendReissueService.lambdaQuery().eq(CmtAttendReissue::getEkpReviewId, dto.getEkpReviewId()).one();
         if (Objects.isNull(attendReissue)) {
-            log.error("未找到对应的补卡申请记录，ekpReviewId={}", dto.getEkpReviewId());
-            throw new BizException(ApiMessage.INTERNAL_ERROR);
+            throw new BizException("未找到对应的补卡申请记录");
         }
         if (GlobalConstants.INT_YES.equals(attendReissue.getIsApproved())) {
             return;
         }
         CmtUser cmtUser = cmtUserMapper.selectById(attendReissue.getCmtUserId());
         if (Objects.isNull(cmtUser)) {
-            log.error("未找到补卡申请的cmt用户，cmtUserId={}", attendReissue.getCmtUserId());
-            return;
+            throw new BizException("未找到补卡申请的cmt用户，cmtUserId:" + attendReissue.getCmtUserId());
         }
         // 审批通过 添加企微补卡记录
         if (GlobalConstants.AttendReissueApprovalResult.APPROVED.equals(dto.getIsApproved())) {
             WeComApiUtil.addUserAttend(cmtUser.getWeComId(), attendReissue.getRuleCheckinTime());
         } else {
             // 审批被驳回 将蓝凌的审批流程删除
-            this.deleteReissueProcessForEkp(dto.getEkpReviewId());
+            cmtEkpService.deleteEkpReview(dto.getEkpReviewId());
         }
         attendReissueService.lambdaUpdate()
                 .set(CmtAttendReissue::getIsApproved, dto.getIsApproved())

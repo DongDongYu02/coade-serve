@@ -2,6 +2,7 @@ package cn.dong.coade.modules.cmt.service;
 
 import cn.dong.coade.modules.cmt.domain.bo.AttendDurationBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
+import cn.dong.coade.modules.cmt.domain.query.AttendMonthDataQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
 import cn.dong.coade.modules.cmt.domain.vo.*;
@@ -159,4 +160,10 @@ public interface ICmtAttendService {
      * 用户加班申请列表
      */
     List<AttendOvertimeRequestVO> getUserOvertimeRequestList();
+
+
+    /**
+     * 查询用户月考勤数据
+     */
+    List<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query);
 }

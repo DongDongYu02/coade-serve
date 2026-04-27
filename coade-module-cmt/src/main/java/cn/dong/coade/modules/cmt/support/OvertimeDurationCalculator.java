@@ -45,7 +45,7 @@ public class OvertimeDurationCalculator {
     /**
      * 计算加班时长
      */
-    public AttendDurationBO calculateDurationOfOvertime(String weComId, LocalDateTime beginTime, LocalDateTime endTime) {
+    public AttendDurationBO calculateDurationOfOvertime(String weComId, LocalDateTime beginTime, LocalDateTime endTime, Set<LocalDate> noNeedCheckinDates) {
         if (StrUtil.isBlank(weComId) || beginTime == null || endTime == null || !endTime.isAfter(beginTime)) {
             return buildAttendDurationBO(BigDecimal.ZERO, "0小时");
         }
@@ -71,10 +71,27 @@ public class OvertimeDurationCalculator {
             }
 
             AttendRuleBO currentRule = getRule(weComId, currentDate);
-            boolean restDay = currentRule == null || currentRule.getRuleType() == AttendRuleType.EMPTY;
 
-            // 休息日取前一天规则作为参照
-            AttendRuleBO calcRule = restDay ? getRule(weComId, currentDate.minusDays(1)) : currentRule;
+            boolean noNeedCheckinDate = noNeedCheckinDates.contains(currentDate);
+            boolean emptyRule = currentRule == null || currentRule.getRuleType() == AttendRuleType.EMPTY;
+
+            // 无需打卡日期，也按休息日计算加班
+            boolean restDay = noNeedCheckinDate || emptyRule;
+
+            AttendRuleBO calcRule;
+
+            if (noNeedCheckinDate && !emptyRule) {
+                // 关键点：
+                // 当天原本是正常工作日，只是被配置为无需打卡，
+                // 加班计算仍然使用当天原本规则作为参照。
+                calcRule = currentRule;
+            } else if (restDay) {
+                // 原本就是休息日，取前一天规则作为参照
+                calcRule = getRule(weComId, currentDate.minusDays(1));
+            } else {
+                // 正常工作日
+                calcRule = currentRule;
+            }
 
             List<TimeWindow> calcWindows = getOvertimeCalcWindows(calcRule);
 
