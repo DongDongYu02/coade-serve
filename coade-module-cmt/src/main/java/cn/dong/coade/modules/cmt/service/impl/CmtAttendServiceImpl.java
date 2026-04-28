@@ -8,6 +8,7 @@ import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.*;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
+import cn.dong.coade.modules.cmt.domain.query.AttendBizTripDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendMonthDataQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
@@ -58,6 +59,7 @@ import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -519,8 +521,8 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     public void addBizTripRequest(AttendBizTripRequestDTO dto) {
         CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUserOrThrow();
         dto.doValidate();
-        // 计算外出时长
-        AttendDurationBO duration = this.calculateDurationOfAttend(loginUser.getWeComId(), dto.getBeginTime(), dto.getEndTime());
+        // 计算出差时长
+        AttendDurationBO duration = this.calculateDays(dto.getBeginTime(), dto.getEndTime());
         dto.setDuration(duration.getDuration());
         dto.setDurationFormat(duration.getDurationFormat());
         CmtBizTripRequest entity = dto.toEntity();
@@ -551,7 +553,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         if (Objects.isNull(user)) {
             throw new BizException("CMT用户不存在,userEkpId:" + dto.getUserEkpId());
         }
-        // 判断请假区间内是否已有请假申请
+        // 判断区间内是否已有申请
         boolean exists = bizTripRequestService.lambdaQuery()
                 .in(CmtBizTripRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
                 .le(CmtBizTripRequest::getBeginTime, dto.getEndTime())
@@ -725,8 +727,6 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         LocalDateTime endTime = LocalDateTime.of(monthEnd, LocalTime.of(23, 59, 59));
 
         // 1. 获取本月所有原始打卡记录
-        // 如果你本地方法名是 getCheckinRecords，也可以换回：
-        // List<UserAttendRecordVO> checkinRecords = WeComApiUtil.getCheckinRecords(user.getWeComId(), beginTime, endTime);
         List<UserAttendRecordVO> checkinRecords = WeComApiUtil.getUserAttend(
                 user.getWeComId(),
                 beginTime,
@@ -771,16 +771,17 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                     GlobalConstants.EkpLeaveBizType.OUTGOING
             );
 
-            attendReissues = attendReissueService.getUserReissueRecordsByTimeRange(
-                    user.getEkpId(),
-                    beginTime,
-                    endTime
-            );
-            outInfo = _this.getAttendBizRecords(
+            overtimeInfo = _this.getAttendBizRecords(
                     user.getEkpId(),
                     beginTime,
                     endTime,
                     GlobalConstants.EkpLeaveBizType.OVERTIME
+            );
+
+            attendReissues = attendReissueService.getUserReissueRecordsByTimeRange(
+                    user.getEkpId(),
+                    beginTime,
+                    endTime
             );
         }
 
@@ -804,6 +805,14 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         // 请假天数累计
         BigDecimal leaveDays = BigDecimal.ZERO;
 
+        // 加班小时累计，单位：小时
+        BigDecimal overtimeDuration = calculateMonthOvertimeDuration(
+                user.getWeComId(),
+                overtimeInfo,
+                beginTime,
+                monthStart.plusMonths(1).atStartOfDay()
+        );
+
         // 实际出勤分钟数，用于格式化成 x天x小时x分钟
         long attendMinutes = 0L;
 
@@ -824,11 +833,13 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             List<EkpAttendBusinessBO> dayLeaveInfo = filterBizByDay(leaveInfo, day);
             List<EkpAttendBusinessBO> dayTripInfo = filterBizByDay(tripInfo, day);
             List<EkpAttendBusinessBO> dayOutInfo = filterBizByDay(outInfo, day);
+            List<EkpAttendBusinessBO> dayOvertimeInfo = filterBizByDay(overtimeInfo, day);
 
             // 先展示业务记录
             dayData.addAll(buildMonthBizTexts("请假", dayLeaveInfo));
             dayData.addAll(buildMonthBizTexts("出差", dayTripInfo));
             dayData.addAll(buildMonthBizTexts("外出", dayOutInfo));
+            dayData.addAll(buildMonthBizTexts("加班", dayOvertimeInfo));
 
             // 未来日期不计算考勤，也不累计出勤天数
             if (day.isAfter(today)) {
@@ -907,6 +918,8 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             BigDecimal dayAttendDays = calculateDayAttendDays(
                     dayActualRecords,
                     dayLeaveInfo,
+                    dayOutInfo,
+                    dayTripInfo,
                     rule,
                     day
             );
@@ -916,6 +929,8 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             long dayAttendMinutes = calculateDayAttendMinutes(
                     dayActualRecords,
                     dayLeaveInfo,
+                    dayOutInfo,
+                    dayTripInfo,
                     rule,
                     day
             );
@@ -957,7 +972,93 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         monthDataVO.setLeaveDays(leaveDays.setScale(2, RoundingMode.HALF_UP));
         monthDataVO.setLeaveDaysText(formatAttendDurationMore(leaveMinutes, formatStandardDayMinutes));
 
+        monthDataVO.setOvertimeDuration(formatOvertimeDuration(overtimeDuration));
+
         return List.of(monthDataVO);
+    }
+
+    @Override
+    public AttendDurationVO getBizTripDurationByEkpUserId(AttendBizTripDurationQuery query) {
+        AttendDurationBO durationBO = this.calculateDays(query.getBeginTime(), query.getEndTime());
+        return new AttendDurationVO(durationBO.getDuration(), durationBO.getDurationFormat());
+    }
+
+    @Override
+    public AttendDurationVO getCurrentUserBizTripDuration(AttendBizTripDurationQuery query) {
+        CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUser();
+        query.setUserEkpId(loginUser.getEkpId());
+        return this.getBizTripDurationByEkpUserId(query);
+    }
+
+    /**
+     * 计算本月加班小时数。
+     * <p>
+     * 说明：
+     * 1. 加班时长复用 OvertimeDurationCalculator，保持和加班申请处一致。
+     * 2. 返回单位是小时，例如：7、7.5。
+     * 3. 如果加班记录跨月，会按本月查询区间裁剪，避免多算。
+     */
+    private BigDecimal calculateMonthOvertimeDuration(String weComId,
+                                                      List<EkpAttendBusinessBO> overtimeInfo,
+                                                      LocalDateTime monthBegin,
+                                                      LocalDateTime monthEndExclusive) {
+        if (StrUtil.isBlank(weComId) || CollUtil.isEmpty(overtimeInfo)) {
+            return BigDecimal.ZERO;
+        }
+
+        OvertimeDurationCalculator calculator =
+                new OvertimeDurationCalculator(attendRuleService::getUserAttendRule);
+
+        BigDecimal total = BigDecimal.ZERO;
+
+        for (EkpAttendBusinessBO overtime : overtimeInfo) {
+            if (Objects.isNull(overtime)
+                    || Objects.isNull(overtime.getStartTime())
+                    || Objects.isNull(overtime.getEndTime())) {
+                continue;
+            }
+
+            LocalDateTime begin = overtime.getStartTime().isBefore(monthBegin)
+                    ? monthBegin
+                    : overtime.getStartTime();
+
+            LocalDateTime end = !overtime.getEndTime().isBefore(monthEndExclusive)
+                    ? monthEndExclusive
+                    : overtime.getEndTime();
+
+            if (!end.isAfter(begin)) {
+                continue;
+            }
+
+            AttendDurationBO durationBO = calculator.calculateDurationOfOvertime(
+                    weComId,
+                    begin,
+                    end,
+                    noNeedCheckinDates
+            );
+
+            if (Objects.nonNull(durationBO) && Objects.nonNull(durationBO.getDuration())) {
+                total = total.add(durationBO.getDuration());
+            }
+        }
+
+        return total.setScale(2, RoundingMode.HALF_UP).stripTrailingZeros();
+    }
+
+    /**
+     * 格式化加班小时数。
+     * <p>
+     * example:
+     * 7小时
+     * 7.5小时
+     * -
+     */
+    private String formatOvertimeDuration(BigDecimal duration) {
+        if (Objects.isNull(duration) || duration.compareTo(BigDecimal.ZERO) <= 0) {
+            return "-";
+        }
+
+        return duration.stripTrailingZeros().toPlainString() + "小时";
     }
 
     /**
@@ -1044,20 +1145,20 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     /**
      * 计算当天实际出勤分钟数
      * 规则：
-     * 1. 当天有至少一次真实打卡，基础出勤分钟 = 当天标准工作分钟
-     * 2. 当天没有真实打卡，出勤分钟 = 0
+     * 1. 当天有至少一次真实打卡 / 外出 / 出差，基础出勤分钟 = 当天标准工作分钟
+     * 2. 当天没有真实打卡、外出、出差，出勤分钟 = 0
      * 3. 有请假时，扣减请假落在工作时段内的分钟数
      * 4. 最低不小于0
      */
     private long calculateDayAttendMinutes(List<UserAttendRecordVO> actualRecords,
                                            List<EkpAttendBusinessBO> dayLeaveInfo,
+                                           List<EkpAttendBusinessBO> dayOutInfo,
+                                           List<EkpAttendBusinessBO> dayTripInfo,
                                            AttendRuleBO rule,
                                            LocalDate day) {
-        boolean hasActualPunch = CollUtil.isNotEmpty(actualRecords)
-                && actualRecords.stream()
-                .anyMatch(item -> StrUtil.isNotBlank(item.getCheckinTime()));
+        boolean attended = hasAttendEvidence(actualRecords, dayOutInfo, dayTripInfo);
 
-        if (!hasActualPunch) {
+        if (!attended) {
             return 0L;
         }
 
@@ -1065,10 +1166,6 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
         if (standardWorkMinutes <= 0) {
             return 0L;
-        }
-
-        if (CollUtil.isEmpty(dayLeaveInfo)) {
-            return standardWorkMinutes;
         }
 
         long leaveMinutes = calculateLeaveMinutesInWorkRanges(dayLeaveInfo, rule, day);
@@ -1087,27 +1184,22 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
      * 计算当天出勤天数
      * <p>
      * 规则：
-     * 1. 当天有至少一次真实打卡，基础出勤 = 1天
-     * 2. 当天没有真实打卡，出勤 = 0天
+     * 1. 当天有至少一次真实打卡 / 外出 / 出差，基础出勤 = 1天
+     * 2. 当天没有真实打卡、外出、出差，出勤 = 0天
      * 3. 有请假时，按 请假时长 / 当天应出勤时长 折算扣减
      * 4. 最低不小于0
      */
     private BigDecimal calculateDayAttendDays(List<UserAttendRecordVO> actualRecords,
                                               List<EkpAttendBusinessBO> dayLeaveInfo,
+                                              List<EkpAttendBusinessBO> dayOutInfo,
+                                              List<EkpAttendBusinessBO> dayTripInfo,
                                               AttendRuleBO rule,
                                               LocalDate day) {
-        boolean hasActualPunch = CollUtil.isNotEmpty(actualRecords)
-                && actualRecords.stream()
-                .anyMatch(item -> StrUtil.isNotBlank(item.getCheckinTime()));
+        boolean attended = hasAttendEvidence(actualRecords, dayOutInfo, dayTripInfo);
 
-        // 没有真实打卡，不算出勤
-        if (!hasActualPunch) {
+        // 没有真实打卡、外出、出差，不算出勤
+        if (!attended) {
             return BigDecimal.ZERO;
-        }
-
-        // 有打卡、无请假，直接算 1 天
-        if (CollUtil.isEmpty(dayLeaveInfo)) {
-            return BigDecimal.ONE;
         }
 
         // 当天标准出勤分钟数
@@ -1137,6 +1229,27 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         }
 
         return result;
+    }
+
+    /**
+     * 判断当天是否有出勤依据
+     * <p>
+     * 出勤依据包括：
+     * 1. 至少一次真实打卡
+     * 2. 当天存在外出记录
+     * 3. 当天存在出差记录
+     */
+    private boolean hasAttendEvidence(List<UserAttendRecordVO> actualRecords,
+                                      List<EkpAttendBusinessBO> dayOutInfo,
+                                      List<EkpAttendBusinessBO> dayTripInfo) {
+        boolean hasActualPunch = CollUtil.isNotEmpty(actualRecords)
+                && actualRecords.stream()
+                .anyMatch(item -> StrUtil.isNotBlank(item.getCheckinTime()));
+
+        boolean hasOutgoing = CollUtil.isNotEmpty(dayOutInfo);
+        boolean hasBusinessTrip = CollUtil.isNotEmpty(dayTripInfo);
+
+        return hasActualPunch || hasOutgoing || hasBusinessTrip;
     }
 
     /**
@@ -1278,6 +1391,26 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         }
 
         return dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+    }
+
+    private AttendDurationBO calculateDays(LocalDate beginTime, LocalDate endTime) {
+        AttendDurationBO durationBO = new AttendDurationBO();
+        if (beginTime == null || endTime == null) {
+            durationBO.setDuration(BigDecimal.ZERO);
+            durationBO.setDurationFormat("0天");
+            return durationBO;
+        }
+
+        if (beginTime.isAfter(endTime)) {
+            durationBO.setDuration(BigDecimal.ZERO);
+            durationBO.setDurationFormat("0天");
+            return durationBO;
+        }
+
+        long days = ChronoUnit.DAYS.between(beginTime, endTime) + 1;
+        durationBO.setDuration(new BigDecimal(days));
+        durationBO.setDurationFormat(days + "天");
+        return durationBO;
     }
 
     @Override

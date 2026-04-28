@@ -2,6 +2,7 @@ package cn.dong.coade.modules.cmt.service;
 
 import cn.dong.coade.modules.cmt.domain.bo.AttendDurationBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
+import cn.dong.coade.modules.cmt.domain.query.AttendBizTripDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendMonthDataQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
@@ -166,4 +167,14 @@ public interface ICmtAttendService {
      * 查询用户月考勤数据
      */
     List<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query);
+
+    /**
+     * 计算出差天数
+     */
+    AttendDurationVO getBizTripDurationByEkpUserId(AttendBizTripDurationQuery query);
+
+    /**
+     * 计算当前用户出差天数
+     */
+    AttendDurationVO getCurrentUserBizTripDuration(AttendBizTripDurationQuery query);
 }

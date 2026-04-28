@@ -31,6 +31,15 @@ public class AttendMonthDataVO {
     @Schema(description = "当天考勤情况")
     private List<DayCase> dayCases;
 
+    @Schema(description = "加班时长")
+    private String overtimeDuration;
+
+    @Schema(description = "出差天数")
+    private BigDecimal bizTripDays;
+
+    @Schema(description = "出差天数格式化文本")
+    private String bizTripDaysText;
+
     @Data
     public static class DayCase {
         @Schema(description = "当月第几天")

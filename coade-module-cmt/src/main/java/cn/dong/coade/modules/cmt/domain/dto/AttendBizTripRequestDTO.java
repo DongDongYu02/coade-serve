@@ -16,7 +16,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -24,17 +24,17 @@ import java.time.LocalDateTime;
 public class AttendBizTripRequestDTO extends BaseDTO<CmtBizTripRequest> {
 
 
-    @Schema(description = "外出开始时间")
+    @Schema(description = "出差开始时间")
     @NotNull
-    @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDateTime beginTime;
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDate beginTime;
 
-    @Schema(description = "外出结束时间")
+    @Schema(description = "出差结束时间")
     @NotNull
-    @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDateTime endTime;
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDate endTime;
 
-    @Schema(description = "外出事由")
+    @Schema(description = "出差事由")
     @NotBlank
     private String reason;
 
@@ -48,7 +48,7 @@ public class AttendBizTripRequestDTO extends BaseDTO<CmtBizTripRequest> {
     public void doValidate() {
         super.doValidate();
         String userId = SpringUtil.getBean(IAuthContext.class).getLoginUserOrThrow().getId();
-        // 判断请假区间内是否已有请假申请
+        // 判断出差区间内是否已有申请
         boolean exists = Db.lambdaQuery(CmtBizTripRequest.class)
                 .in(CmtBizTripRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
                 .le(CmtBizTripRequest::getBeginTime, endTime)

@@ -8,7 +8,7 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 @Schema(description = "出差申请EKP回调 DTO")
@@ -16,13 +16,13 @@ public class AttendBizTripRequestEkpCallbackDTO {
 
     @Schema(description = "出差开始时间")
     @NotNull
-    @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDateTime beginTime;
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDate beginTime;
 
     @Schema(description = "出差结束时间")
     @NotNull
-    @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDateTime endTime;
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDate endTime;
 
     @Schema(description = "外出事由")
     @NotBlank

@@ -1,9 +1,5 @@
 package cn.dong.nexus;
 
-import cn.dong.coade.modules.cmt.domain.query.AttendMonthDataQuery;
-import cn.dong.coade.modules.cmt.domain.vo.AttendMonthDataVO;
-import cn.dong.coade.modules.cmt.service.ICmtAttendService;
-import cn.hutool.extra.spring.SpringUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.annotation.MapperScan;
@@ -14,7 +10,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.net.InetAddress;
-import java.util.List;
 
 @Slf4j
 @SpringBootApplication(scanBasePackages = {"cn.dong.nexus", "cn.dong.coade"})
@@ -40,14 +35,6 @@ public class NexusApplication {
                 env.getProperty("server.port"),
                 env.getProperty("server.port"),
                 env.getProperty("server.servlet.context-path") == null ? "" : env.getProperty("server.servlet.context-path"));
-
-        AttendMonthDataQuery query = new AttendMonthDataQuery();
-        query.setMonth(4);
-        query.setYear(2026);
-        query.setUserId("2036103902477873157");
-        List<AttendMonthDataVO> userMonthAttendData = SpringUtil.getBean(ICmtAttendService.class).getUserMonthAttendData(query);
-        System.out.println();
-
     }
 
 }

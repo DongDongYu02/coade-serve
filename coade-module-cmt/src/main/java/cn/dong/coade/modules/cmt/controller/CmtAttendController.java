@@ -1,9 +1,7 @@
 package cn.dong.coade.modules.cmt.controller;
 
 import cn.dong.coade.modules.cmt.domain.dto.*;
-import cn.dong.coade.modules.cmt.domain.query.AttendLeaveDurationQuery;
-import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
-import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
+import cn.dong.coade.modules.cmt.domain.query.*;
 import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
 import cn.dong.coade.modules.cmt.support.aspect.annotation.EkpCallbackValid;
@@ -158,6 +156,15 @@ public class CmtAttendController {
         return Result.success(duration);
     }
 
+    @GetMapping("/ekp/biz-trip-duration")
+    @Operation(summary = "EKP获取出差天数")
+    @EkpCallbackValid
+    public Result<AttendDurationVO> getBizTripDurationForEkp(@ParameterObject AttendBizTripDurationQuery query) {
+        AttendDurationVO duration = attendService.getBizTripDurationByEkpUserId(query);
+        return Result.success(duration);
+    }
+
+
     @PostMapping("/ekp/outgoing-request/callback")
     @Operation(summary = "EKP外出流程审批回调")
     @EkpCallbackValid
@@ -215,6 +222,13 @@ public class CmtAttendController {
         return Result.success(duration);
     }
 
+    @GetMapping("/biz-trip-duration")
+    @Operation(summary = "获取当前用户出差工时")
+    public Result<AttendDurationVO> getBizTripDuration(@ParameterObject AttendBizTripDurationQuery query) {
+        AttendDurationVO duration = attendService.getCurrentUserBizTripDuration(query);
+        return Result.success(duration);
+    }
+
     @GetMapping("/user/outgoing/list")
     @Operation(summary = "当前用户外出记录列表")
     public Result<List<AttendOutgoingRequestVO>> getUserOutgoingRequestList() {
@@ -243,6 +257,12 @@ public class CmtAttendController {
         return Result.success(records);
     }
 
+    @GetMapping("/user/month/attend")
+    @Operation(summary = "查询用户当月考勤数据")
+    public Result<List<AttendMonthDataVO>> getUserMonthAttend(@ParameterObject AttendMonthDataQuery query) {
+        List<AttendMonthDataVO> records = attendService.getUserMonthAttendData(query);
+        return Result.success(records);
+    }
 
 
 }

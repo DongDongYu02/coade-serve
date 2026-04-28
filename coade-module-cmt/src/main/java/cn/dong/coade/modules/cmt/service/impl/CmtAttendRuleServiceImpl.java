@@ -72,7 +72,7 @@ public class CmtAttendRuleServiceImpl extends ServiceImpl<CmtAttendRuleMapper, C
                 .one();
         if (Objects.nonNull(rule)) {
             ruleBO = JSONUtil.toBean(rule.getRule(), AttendRuleBO.class);
-            RedisUtil.set(cacheKey, ruleBO);
+            RedisUtil.set(cacheKey, ruleBO, 15, TimeUnit.DAYS);
             return ruleBO;
         }
         // 数据库也没有 查企微

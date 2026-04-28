@@ -236,9 +236,9 @@ public class CmtEkpService {
         JSONObject content = new JSONObject();
         CoadeProperties.Ekp.Review.BizTripRequestField bizTripRequestField = coadeProperties.getEkp().getReview().getBizTripRequestField();
         // 出差开始时间
-        content.set(bizTripRequestField.getBeginTime(), dto.getBeginTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
+        content.set(bizTripRequestField.getBeginTime(), dto.getBeginTime().format(GlobalConstants.DateFormat.NORMAL_ONLY_DATE));
         // 出差结束时间
-        content.set(bizTripRequestField.getEndTime(), dto.getEndTime().format(GlobalConstants.DateFormat.Y_M_D_H_M));
+        content.set(bizTripRequestField.getEndTime(), dto.getEndTime().format(GlobalConstants.DateFormat.NORMAL_ONLY_DATE));
         // 出差时长
         content.set(bizTripRequestField.getDuration(), dto.getDuration().doubleValue());
         // 出差时长显示值

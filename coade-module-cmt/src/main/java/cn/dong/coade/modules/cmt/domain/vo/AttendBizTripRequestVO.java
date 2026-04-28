@@ -6,7 +6,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
+import java.time.LocalDate;
 
 @Data
 @Schema(description = "出差申请记录 VO")
@@ -18,13 +18,13 @@ public class AttendBizTripRequestVO {
     @Schema(description = "用户ID")
     private String userId;
 
-    @Schema(description = "出差开始时间 yyyy-MM-dd HH:mm")
-    @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDateTime beginTime;
+    @Schema(description = "出差开始时间 yyyy-MM-dd")
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDate beginTime;
 
-    @Schema(description = "出差结束时间 yyyy-MM-dd HH:mm")
-    @JsonFormat(pattern = GlobalConstants.DatePattern.Y_M_D_H_M, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDateTime endTime;
+    @Schema(description = "出差结束时间 yyyy-MM-dd")
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDate endTime;
 
     @Schema(description = "出差时长")
     private BigDecimal duration;

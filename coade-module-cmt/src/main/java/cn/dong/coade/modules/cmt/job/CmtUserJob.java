@@ -24,7 +24,7 @@ public class CmtUserJob {
         cmtUserService.updateUsersByEkpUsers(ekpUsers);
     }
 
-    @Scheduled(cron = "0 10 0 * * *")
+    @Scheduled(cron = "0 0 4 * * *")
     public void saveAllUserYesterdayAttendRules() {
         cmtAttendRuleService.saveAllUserAttendRulesByDate(LocalDate.now());
     }
