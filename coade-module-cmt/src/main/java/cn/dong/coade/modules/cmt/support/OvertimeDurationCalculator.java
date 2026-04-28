@@ -206,18 +206,7 @@ public class OvertimeDurationCalculator {
      * 获取加班计算窗口
      */
     private List<TimeWindow> getOvertimeCalcWindows(AttendRuleBO rule) {
-        if (rule == null || rule.getRuleType() == null || rule.getRuleType() == AttendRuleType.EMPTY) {
-            return new ArrayList<>();
-        }
-
-        String[][] ranges;
-        if (rule.getRuleType() == AttendRuleType.IMD) {
-            ranges = IMD_OVERTIME_RANGES;
-        } else {
-            ranges = rule.getTimeRanges();
-        }
-
-        return parseTimeWindows(ranges);
+        return parseTimeWindows(AttendRuleWindowResolver.resolveOvertimeCalcRanges(rule));
     }
 
     /**
@@ -264,9 +253,7 @@ public class OvertimeDurationCalculator {
                                      LocalDateTime range1End,
                                      LocalDateTime range2Start,
                                      LocalDateTime range2End) {
-        LocalDateTime actualStart = range1Start.isAfter(range2Start) ? range1Start : range2Start;
-        LocalDateTime actualEnd = range1End.isBefore(range2End) ? range1End : range2End;
-        return actualEnd.isAfter(actualStart) ? Duration.between(actualStart, actualEnd).toMinutes() : 0L;
+        return AttendTimeWindowUtil.intersectionMinutes(range1Start, range1End, range2Start, range2End);
     }
 
     /**
@@ -338,10 +325,7 @@ public class OvertimeDurationCalculator {
     }
 
     private String formatHoursWithoutUnit(long minutes) {
-        BigDecimal hours = BigDecimal.valueOf(minutes)
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP)
-                .stripTrailingZeros();
-        return hours.toPlainString();
+        return AttendDurationFormatter.toHourNumber(minutes);
     }
 
     private AttendDurationBO buildAttendDurationBO(BigDecimal duration, String durationFormat) {

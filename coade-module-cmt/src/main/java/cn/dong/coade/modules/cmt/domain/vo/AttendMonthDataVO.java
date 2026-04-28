@@ -1,5 +1,7 @@
 package cn.dong.coade.modules.cmt.domain.vo;
 
+import cn.dong.nexus.common.constants.GlobalConstants;
+import cn.dong.nexus.core.resmapping.annotation.ResMapping;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -11,7 +13,11 @@ import java.util.List;
 public class AttendMonthDataVO {
 
     @Schema(description = "用户ID")
+    @ResMapping(sourceTable = GlobalConstants.TableName.CMT_USER, values = "dept", targets = "dept")
     private String userId;
+
+    @Schema(description = "部门")
+    private String dept;
 
     @Schema(description = "企微ID")
     private String weComId;
@@ -39,6 +45,22 @@ public class AttendMonthDataVO {
 
     @Schema(description = "出差天数格式化文本")
     private String bizTripDaysText;
+
+    @Schema(description = "缺卡次数")
+    private Integer shortages;
+
+    @Schema(description = "迟到次数")
+    private Integer lateCount;
+
+    @Schema(description = "迟到时长 分钟")
+    private Integer lateDuration;
+
+    @Schema(description = "早退次数")
+    private Integer earlyCount;
+
+    @Schema(description = "早退时长 分钟")
+    private Integer earlyDuration;
+
 
     @Data
     public static class DayCase {

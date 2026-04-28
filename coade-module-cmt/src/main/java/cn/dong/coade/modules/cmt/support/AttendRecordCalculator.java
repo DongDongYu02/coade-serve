@@ -7,7 +7,6 @@ import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
 import cn.dong.coade.modules.cmt.domain.vo.UserLeaveAttendVO;
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
 import lombok.AllArgsConstructor;
@@ -198,20 +197,10 @@ public class AttendRecordCalculator {
     }
 
     /**
-     * 解析考勤规则时间段
-     * 优先使用 BO 上显式配置的 timeRanges；若为空，则回退到 ruleType 自带规则
+     * 解析考勤规则时间段。
      */
     private String[][] resolveTimeRanges(AttendRuleBO rule) {
-        if (rule == null) {
-            return null;
-        }
-        if (ArrayUtil.isNotEmpty(rule.getTimeRanges())) {
-            return rule.getTimeRanges();
-        }
-        if (rule.getRuleType() != null) {
-            return rule.getRuleType().getRule();
-        }
-        return null;
+        return AttendRuleWindowResolver.resolveAttendRecordRanges(rule);
     }
 
     /**
@@ -789,26 +778,18 @@ public class AttendRecordCalculator {
             ActualPunch matched = matchedIndex == null ? null : punches.get(matchedIndex);
 
             // 固定业务状态：请假 / 出差 / 外出
-            // 这类规则点只用于展示业务状态，不再绑定真实打卡记录。
-            //
-            // 原因：
-            // 例如规则为 08:00-11:30、12:30-17:30，请假 08:00-12:30，
-            // 员工 12:23 提前回岗打卡。
-            //
-            // 旧逻辑会让 11:30 的“请假”点吃掉 12:23，导致出现：
-            // 12:23 请假
-            // 12:23 正常
-            //
-            // 正确逻辑应该是：
-            // 08:00 请假
-            // 11:30 请假
-            // 12:23 正常
-            //
-            // 所以固定业务状态点直接按规则点时间展示，不占用真实打卡。
             if (StrUtil.isNotBlank(current.getFixedStatus())) {
-                vo.setCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
-                vo.setRuleCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
-                vo.setLocation("-");
+                if (matched != null) {
+                    vo.setCheckinTime(matched.getTime().format(DATE_TIME_FMT));
+                    vo.setRuleCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
+                    vo.setLocation(matched.getLocation());
+                    vo.setExceptionStatus(matched.getExceptionStatus());
+                    vo.setIsReissue(matched.getIsReissue());
+                } else {
+                    vo.setCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
+                    vo.setRuleCheckinTime(current.getExpectedTime().format(DATE_TIME_FMT));
+                    vo.setLocation("-");
+                }
                 vo.setStatus(current.getFixedStatus());
                 result.add(vo);
                 continue;
@@ -1146,21 +1127,10 @@ public class AttendRecordCalculator {
     }
 
     /**
-     * 格式化业务时间段
+     * 格式化业务时间段。
      */
     private List<String> formatBizTimes(List<EkpAttendBusinessBO> bizList) {
-        if (CollUtil.isEmpty(bizList)) {
-            return Collections.emptyList();
-        }
-
-        return bizList.stream()
-                .filter(Objects::nonNull)
-                .filter(item -> item.getStartTime() != null && item.getEndTime() != null)
-                .sorted(Comparator.comparing(EkpAttendBusinessBO::getStartTime))
-                .map(item -> StrUtil.format("{} - {}",
-                        LocalDateTimeUtil.format(item.getStartTime(), "MM-dd HH:mm"),
-                        LocalDateTimeUtil.format(item.getEndTime(), "MM-dd HH:mm")))
-                .collect(Collectors.toList());
+        return AttendBizTextFormatter.formatRangeTexts(bizList, "MM-dd HH:mm", " - ");
     }
 
     private enum PunchType {

@@ -6,6 +6,7 @@ import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
 import cn.dong.coade.modules.cmt.support.aspect.annotation.EkpCallbackValid;
 import cn.dong.nexus.core.api.Result;
+import cn.dong.nexus.core.resmapping.annotation.ResultTranslate;
 import cn.hutool.json.JSONUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -259,6 +260,7 @@ public class CmtAttendController {
 
     @GetMapping("/user/month/attend")
     @Operation(summary = "查询用户当月考勤数据")
+    @ResultTranslate
     public Result<List<AttendMonthDataVO>> getUserMonthAttend(@ParameterObject AttendMonthDataQuery query) {
         List<AttendMonthDataVO> records = attendService.getUserMonthAttendData(query);
         return Result.success(records);

@@ -5,13 +5,15 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
+import java.util.List;
+
 @Data
 @Schema(description = "月考勤数据查询对象")
 public class AttendMonthDataQuery {
 
     @Schema(description = "用户ID")
     @NotBlank
-    private String userId;
+    private List<String> userIds;
 
     @Schema(description = "年份")
     @NotNull
