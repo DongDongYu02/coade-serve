@@ -24,11 +24,9 @@ import lombok.extern.slf4j.Slf4j;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Slf4j
 public class WeComApiUtil {
@@ -224,10 +222,18 @@ public class WeComApiUtil {
                 break;
             }
         }
+        Set<String> weComIdSet = result.stream().map(AttendRuleBO::getWeComId).collect(Collectors.toSet());
+        weComIds.forEach(item ->{
+            if (!weComIdSet.contains(item)) {
+                AttendRuleBO bo = new AttendRuleBO(new String[][]{}, new int[]{}, AttendRuleType.EMPTY, item);
+                result.add(bo);
+            }
+        });
         return result;
     }
 
     public static AttendRuleBO getUserAttendRule(String weComId, LocalDateTime attendDate) {
+        log.info("从企业微信查询用户打卡规则,weComId:{},attendDate:{}", weComId, attendDate);
         String accessToken = getAccessToken();
         long datetime = LocalDateTimeUtil.toEpochMilli(attendDate) / 1000;
         String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/checkin/getcheckinoption?access_token={}", accessToken);

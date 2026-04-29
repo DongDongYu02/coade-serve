@@ -35,9 +35,6 @@ public class NexusApplication {
                 env.getProperty("server.port"),
                 env.getProperty("server.port"),
                 env.getProperty("server.servlet.context-path") == null ? "" : env.getProperty("server.servlet.context-path"));
-//        for (int i = 1; i < 28; i++) {
-//            SpringUtil.getBean(CmtAttendRuleServiceImpl.class).saveAllUserAttendRulesByDate(LocalDate.of(2026, 4, i));
-//        }
     }
 
 }

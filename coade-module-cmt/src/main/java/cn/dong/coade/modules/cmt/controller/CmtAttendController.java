@@ -5,9 +5,10 @@ import cn.dong.coade.modules.cmt.domain.query.*;
 import cn.dong.coade.modules.cmt.domain.vo.*;
 import cn.dong.coade.modules.cmt.service.ICmtAttendService;
 import cn.dong.coade.modules.cmt.support.aspect.annotation.EkpCallbackValid;
+import cn.dong.nexus.common.domain.vo.FileExportVO;
 import cn.dong.nexus.core.api.Result;
-import cn.dong.nexus.core.resmapping.annotation.ResultTranslate;
 import cn.hutool.json.JSONUtil;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
@@ -260,9 +261,22 @@ public class CmtAttendController {
 
     @GetMapping("/user/month/attend")
     @Operation(summary = "查询用户当月考勤数据")
-    @ResultTranslate
-    public Result<List<AttendMonthDataVO>> getUserMonthAttend(@ParameterObject @Validated AttendMonthDataQuery query) {
-        List<AttendMonthDataVO> records = attendService.getUserMonthAttendData(query);
+    public Result<IPage<AttendMonthDataVO>> getUserMonthAttend(@ParameterObject @Validated AttendMonthDataQuery query) {
+        IPage<AttendMonthDataVO> records = attendService.getUserMonthAttendData(query);
+        return Result.success(records);
+    }
+
+    @GetMapping("/user/month/attend/export")
+    @Operation(summary = "导出当月考勤数据")
+    public Result<Void> exportUserMonthAttend(@ParameterObject @Validated AttendMonthDataQuery query) {
+        attendService.exportUserMonthAttend(query);
+        return Result.success();
+    }
+
+    @GetMapping("/export/list")
+    @Operation(summary = "考勤数据导出记录列表")
+    public Result<List<FileExportVO>> getProblemExportList() {
+        List<FileExportVO> records = attendService.getAttendDataExportList();
         return Result.success(records);
     }
 

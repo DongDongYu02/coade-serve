@@ -6,8 +6,6 @@ import cn.dong.coade.modules.cmt.service.CmtEkpService;
 import cn.dong.coade.modules.cmt.service.ICmtDepartmentService;
 import cn.dong.nexus.core.base.SelectionVO;
 import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.convert.impl.PairConverter;
-import cn.hutool.core.lang.Pair;
 import com.baomidou.dynamic.datasource.annotation.DSTransactional;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
@@ -95,6 +93,7 @@ public class CmtDepartmentServiceImpl extends ServiceImpl<CmtDepartmentMapper, C
     @Override
     public List<SelectionVO<String, String>> getDepartmentSelection() {
         List<CmtDepartment> departments = this.lambdaQuery().select(CmtDepartment::getId, CmtDepartment::getName)
+                .ne(CmtDepartment::getName,"浙江可得电子科技有限公司")
                 .list();
         if (departments.isEmpty()) {
             return List.of();

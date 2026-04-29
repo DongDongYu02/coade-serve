@@ -1,7 +1,5 @@
 package cn.dong.coade.modules.cmt.domain.vo;
 
-import cn.dong.nexus.common.constants.GlobalConstants;
-import cn.dong.nexus.core.resmapping.annotation.ResMapping;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -13,8 +11,13 @@ import java.util.List;
 public class AttendMonthDataVO {
 
     @Schema(description = "用户ID")
-    @ResMapping(sourceTable = GlobalConstants.TableName.CMT_USER, values = "dept", targets = "dept")
-    private String userId;
+    private String id;
+
+    @Schema(description = "EKPID")
+    private String ekpId;
+
+    @Schema(description = "用户名")
+    private String username;
 
     @Schema(description = "部门")
     private String dept;

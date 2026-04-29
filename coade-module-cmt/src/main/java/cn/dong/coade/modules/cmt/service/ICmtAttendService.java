@@ -7,6 +7,8 @@ import cn.dong.coade.modules.cmt.domain.query.AttendMonthDataQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOutgoingDurationQuery;
 import cn.dong.coade.modules.cmt.domain.query.AttendOvertimeDurationQuery;
 import cn.dong.coade.modules.cmt.domain.vo.*;
+import cn.dong.nexus.common.domain.vo.FileExportVO;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -166,7 +168,7 @@ public interface ICmtAttendService {
     /**
      * 查询用户月考勤数据
      */
-    List<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query);
+    IPage<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query);
 
     /**
      * 计算出差天数
@@ -180,7 +182,13 @@ public interface ICmtAttendService {
 
 
     /**
-     * 更新当月所有用户的考勤规则
+     * 导出当月考勤记录
      */
-    void updateAttendRuleByMonth(Integer year, Integer month);
+    void exportUserMonthAttend(AttendMonthDataQuery query);
+
+    /**
+     * 考勤数据导出记录
+     */
+    List<FileExportVO> getAttendDataExportList();
+
 }

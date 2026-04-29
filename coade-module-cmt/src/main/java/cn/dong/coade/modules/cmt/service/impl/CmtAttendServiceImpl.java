@@ -18,31 +18,36 @@ import cn.dong.coade.modules.cmt.mapper.CmtUserMapper;
 import cn.dong.coade.modules.cmt.service.*;
 import cn.dong.coade.modules.cmt.support.*;
 import cn.dong.coade.modules.cmt.utils.WeComApiUtil;
+import cn.dong.nexus.common.api.FileExportCommonApi;
 import cn.dong.nexus.common.constants.ApiConstants;
+import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.constants.GlobalConstants;
+import cn.dong.nexus.common.domain.bo.FileExportBO;
+import cn.dong.nexus.common.domain.vo.FileExportVO;
 import cn.dong.nexus.core.api.ApiMessage;
 import cn.dong.nexus.core.exception.BizException;
+import cn.dong.nexus.core.resmapping.ResMappingUtil;
 import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.dong.nexus.core.security.context.LoginUser;
+import cn.dong.nexus.core.util.FesodExcelUtil;
+import cn.dong.nexus.core.util.PageUtil;
+import cn.dong.nexus.core.util.UploadUtil;
 import cn.dong.nexus.infra.util.DynamicDataSourceUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
-import cn.hutool.core.lang.UUID;
-import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.io.FileUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.extra.spring.SpringUtil;
-import cn.hutool.json.JSONArray;
-import cn.hutool.json.JSONObject;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.dynamic.datasource.annotation.DSTransactional;
 import com.baomidou.dynamic.datasource.toolkit.DynamicDataSourceContextHolder;
+import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.toolkit.SqlRunner;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -50,8 +55,6 @@ import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestTemplate;
 
-import java.io.File;
-import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
@@ -79,6 +82,8 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     private final ICmtOutgoingRequestService outgoingRequestService;
     private final ICmtBizTripRequestService bizTripRequestService;
     private final ICmtOvertimeRequestService overtimeRequestService;
+    private final FileExportCommonApi fileExportCommonApi;
+    private final AttendExportService attendExportService;
     private static final String ATTEND_REISSUE_EKP_REVIEW_TEMPLATE_ID = "16be9d5fc79ef23244153e6457b9483a";
 
     private static final Set<LocalDate> noNeedCheckinDates = Set.of(
@@ -708,7 +713,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     }
 
     @Override
-    public List<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query) {
+    public IPage<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query) {
         LocalDate monthStart = LocalDate.of(query.getYear(), query.getMonth(), 1);
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
 
@@ -717,20 +722,22 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         LocalDateTime beginTime = monthStart.atStartOfDay();
         LocalDateTime endTime = LocalDateTime.of(monthEnd, LocalTime.of(23, 59, 59));
 
-        // 多用户查询：query.getUserIds() 传 CMT 用户ID列表
-        List<CmtUser> users = cmtUserService.lambdaQuery()
-                .in(GlobalConstants.INT_NO.equals(query.getQueryAll()),CmtUser::getId, query.getUserIds())
-                .list();
 
+        IPage<CmtUser> userPage = cmtUserService.lambdaQuery()
+                .eq(StrUtil.isNotBlank(query.getDept()),CmtUser::getDept,query.getDept())
+                .in(CollUtil.isNotEmpty(query.getUserIds()), CmtUser::getId, query.getUserIds())
+                .page(query.toPage());
+        IPage<AttendMonthDataVO> page = PageUtil.convertPage(userPage, AttendMonthDataVO.class);
+        List<AttendMonthDataVO> users = page.getRecords();
         if (CollUtil.isEmpty(users)) {
             throw new BizException(ApiMessage.USER_NOT_FOUND);
         }
 
         List<String> weComIds = users.stream()
-                .map(CmtUser::getWeComId)
+                .map(AttendMonthDataVO::getWeComId)
                 .toList();
         List<String> ekpIds = users.stream()
-                .map(CmtUser::getEkpId)
+                .map(AttendMonthDataVO::getEkpId)
                 .toList();
 
         List<UserAttendRecordVO> attendRecords = WeComApiUtil.getUserAttendByMonth(weComIds, query.getYear(), query.getMonth());
@@ -760,7 +767,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         List<AttendMonthDataVO> result = new ArrayList<>();
 
         // 按入参 userIds 顺序返回
-        for (CmtUser user : users) {
+        for (AttendMonthDataVO user : users) {
             AttendMonthDataVO monthDataVO = buildSingleUserMonthAttendData(
                     user,
                     monthStart,
@@ -781,8 +788,9 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         if (CollUtil.isEmpty(result)) {
             throw new BizException(ApiMessage.USER_NOT_FOUND);
         }
-
-        return result;
+        ResMappingUtil.translateField(result);
+        page.setRecords(result);
+        return page;
     }
 
     /**
@@ -794,7 +802,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
      * 3. 补卡记录串数据
      * 4. 考勤规则串数据
      */
-    private AttendMonthDataVO buildSingleUserMonthAttendData(CmtUser user,
+    private AttendMonthDataVO buildSingleUserMonthAttendData(AttendMonthDataVO monthDataVO,
                                                              LocalDate monthStart,
                                                              LocalDate monthEnd,
                                                              LocalDate today,
@@ -820,10 +828,6 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         Map<LocalDate, List<EkpAttendBusinessBO>> outDayMap = groupBizRecordsByDay(outInfo, monthStart, monthEnd);
         Map<LocalDate, List<EkpAttendBusinessBO>> overtimeDayMap = groupBizRecordsByDay(overtimeInfo, monthStart, monthEnd);
         Map<LocalDate, List<CmtAttendReissue>> reissueDayMap = groupReissueRecordsByDay(attendReissues);
-
-        AttendMonthDataVO monthDataVO = new AttendMonthDataVO();
-        monthDataVO.setUserId(user.getId());
-        monthDataVO.setWeComId(user.getWeComId());
 
         List<AttendMonthDataVO.DayCase> dayCases = new ArrayList<>();
 
@@ -857,7 +861,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
         // 加班小时累计，单位：小时
         BigDecimal overtimeDuration = calculateMonthOvertimeDuration(
-                user.getWeComId(),
+                monthDataVO.getWeComId(),
                 overtimeInfo,
                 monthStart.atStartOfDay(),
                 monthStart.plusMonths(1).atStartOfDay(),
@@ -914,7 +918,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             }
 
             // 5.2 获取当天考勤规则
-            AttendRuleBO rule = getMonthRuleOrLoad(user.getWeComId(), day, monthStart, userDayRuleMap);
+            AttendRuleBO rule = getMonthRuleOrLoad(monthDataVO.getWeComId(), day, monthStart, userDayRuleMap);
 
             if (Objects.isNull(rule) || AttendRuleType.EMPTY.equals(rule.getRuleType())) {
                 if (dayData.isEmpty()) {
@@ -1545,14 +1549,6 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         return StrUtil.format("{} {}", timeText, status);
     }
 
-    private String formatMonthAttendDateTime(LocalDateTime dateTime) {
-        if (Objects.isNull(dateTime)) {
-            return "";
-        }
-
-        return dateTime.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
-    }
-
     @Override
     public AttendDurationVO getBizTripDurationByEkpUserId(AttendBizTripDurationQuery query) {
         AttendDurationBO durationBO = this.calculateDays(query.getBeginTime(), query.getEndTime());
@@ -1567,7 +1563,25 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     }
 
     @Override
-    public void updateAttendRuleByMonth(Integer year, Integer month) {
+    public void exportUserMonthAttend(AttendMonthDataQuery query) {
+        // 创建导出记录
+        String path = FesodExcelUtil.generateRandomXlsxFilePath();
+        FileExportBO fileExportBO = new FileExportBO();
+        fileExportBO.setPath(path);
+        fileExportBO.setName(FileUtil.getName(path));
+        fileExportBO.setOwnerType(AttachmentOwnerType.CMT_ATTEND_DATA.getCode());
+        String exportId = fileExportCommonApi.save(fileExportBO);
+        // 异步执行导出
+        attendExportService.asyncExportMonthAttend(exportId, UploadUtil.UPLOAD_DIR + path, query);
+
+    }
+
+    @Override
+    public List<FileExportVO> getAttendDataExportList() {
+        return fileExportCommonApi.getExportList(
+                AttachmentOwnerType.CMT_ATTEND_DATA.getCode(),
+                authContext.getLoginUser().getId()
+        );
     }
 
     private AttendDurationBO calculateDays(LocalDate beginTime, LocalDate endTime) {
@@ -2098,75 +2112,5 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         return resp.getBody();
     }
 
-    public void test() throws IOException {
-        // 6S整改标题
-        String docSubject = StrUtil.format("测试推送6S整改");
-        // 创建人
-        String docCreator = new JSONObject().set("Id", "190e86d8c6e297f712af1224f19abacf").toJSONString(1);
-        JSONObject content = new JSONObject();
-        // 责任部门
-        content.set("fd_3e8b05b852e42c", new JSONObject().set("Id", "197aac24cfce7199955ad114b5483bbc"));
-        // 责任人
-        content.set("fd_3e8b05c3b915ce", new JSONObject().set("Id", "190e86d8c6e297f712af1224f19abacf"));
-
-        MultiValueMap<String, Object> wholeForm = new LinkedMultiValueMap<>();
-
-        // 整改项
-        JSONArray items = new JSONArray();
-        int attIndex = 0;
-        for (int i = 0; i < 4; i++) {
-            int imgCount = 2;
-
-            JSONArray imgAttKeys = new JSONArray();
-            JSONObject item = new JSONObject()
-                    // 整改内容
-                    .set("fd_3e8b057dd5931c.fd_3e8b06cf4a9d4c", i)
-                    // 截止日期
-                    .set("fd_3e8b057dd5931c.fd_3e8b06d20587fe", "2026-03-13")
-                    // 协助人
-                    .set("fd_3e8b057dd5931c.fd_3e8b08373a1ea4", new JSONObject().set("Id", "190e86d8c6e297f712af1224f19abacf"))
-                    // 问题照片
-                    .set("fd_3e8b057dd5931c.fd_3e8b05f375483e", imgAttKeys);
-            items.add(item);
-            for (int j = 0; j < imgCount; j++) {
-                String attKey = UUID.fastUUID().toString(true);
-                imgAttKeys.set(attKey);
-                String attForm = StrUtil.format("attachmentForms[{}]", attIndex++);
-                wholeForm.add(attForm + ".fdKey", attKey);
-                wholeForm.add(attForm + ".fdFileName", StrUtil.format("{}.png", RandomUtil.randomString(5)));
-                wholeForm.add(attForm + ".fdAttachment", new FileSystemResource(new File("D:\\upload\\20260206\\95cd11a0deaaa79f.png")));
-            }
-        }
-        content.set("fd_3e8b057dd5931c", items);
-        wholeForm.add("docSubject", docSubject);
-        wholeForm.add("docCreator", docCreator);
-        wholeForm.add("docStatus", 20);
-        wholeForm.add("fdTemplateId", "199e1d2c5cff3ef9e9b53a346f0ab173");
-        wholeForm.add("formValues", content.toJSONString(1));
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-        HttpEntity<MultiValueMap<String, Object>> entity = new HttpEntity<>(wholeForm, headers);
-
-        String ekpBaseUrl = SpringUtil.getProperty("coade.ekp.server-url");
-        String url = ekpBaseUrl + ApiConstants.INITIATE_EKP_REVIEW;
-
-        ResponseEntity<String> exchange = restTemplate.exchange(url, HttpMethod.POST, entity, String.class);
-        String body = exchange.getBody();
-        System.out.println();
-    }
-
-
-//    JSONObject formValues = new JSONObject();
-//        formValues.set("fd_3e8b05b852e42c", new JSONObject().set("Id", "197aac24cfce7199955ad114b5483bbc"));
-//        formValues.set("fd_3e8b05c3b915ce", new JSONObject().set("Id", "190e86d8c6e297f712af1224f19abacf"));
-//        formValues.set("fd_3e8b084f325fb8", "备注");
-//
-//        formValues.set("fd_3e8b057dd5931c",
-//                new JSONArray().put(new JSONObject()
-//                        .set("fd_3e8b06cf4a9d4c", "整改项")
-//                        .set("fd_3e8b06d20587fe", "截至时间")
-//                        .set("fd_3e8b08373a1ea4", new JSONObject().set("Id", "190e86d8c6e297f712af1224f19abacf"))));
-//    String jsonPrettyStr = JSONUtil.toJsonPrettyStr(formValues);
 
 }
