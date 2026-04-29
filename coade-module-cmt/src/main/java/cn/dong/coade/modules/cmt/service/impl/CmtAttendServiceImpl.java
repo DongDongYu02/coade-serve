@@ -60,9 +60,6 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -744,37 +741,34 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                         (a, b) -> a
                 ));
 
+        List<AttendMonthDataVO> result = new ArrayList<>();
+
         // 按入参 userIds 顺序返回
-        List<CmtUser> orderedUsers = query.getUserIds()
-                .stream()
-                .map(userMap::get)
-                .filter(Objects::nonNull)
-                .toList();
+        for (String userId : query.getUserIds()) {
+            CmtUser user = userMap.get(userId);
+            if (Objects.isNull(user)) {
+                continue;
+            }
 
-        int poolSize = Math.min(8, orderedUsers.size());
+            AttendMonthDataVO monthDataVO = buildSingleUserMonthAttendData(
+                    user,
+                    query.getYear(),
+                    query.getMonth(),
+                    monthStart,
+                    monthEnd,
+                    today,
+                    beginTime,
+                    endTime
+            );
 
-        ExecutorService executor = Executors.newFixedThreadPool(poolSize);
-
-        try {
-            List<CompletableFuture<AttendMonthDataVO>> futures = orderedUsers.stream()
-                    .map(user -> CompletableFuture.supplyAsync(() -> buildSingleUserMonthAttendData(
-                            user,
-                            query.getYear(),
-                            query.getMonth(),
-                            monthStart,
-                            monthEnd,
-                            today,
-                            beginTime,
-                            endTime
-                    ), executor))
-                    .toList();
-
-            return futures.stream()
-                    .map(CompletableFuture::join)
-                    .toList();
-        } finally {
-            executor.shutdown();
+            result.add(monthDataVO);
         }
+
+        if (CollUtil.isEmpty(result)) {
+            throw new BizException(ApiMessage.USER_NOT_FOUND);
+        }
+
+        return result;
     }
 
     /**
