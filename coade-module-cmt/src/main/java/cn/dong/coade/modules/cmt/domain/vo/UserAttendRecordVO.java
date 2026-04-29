@@ -13,6 +13,9 @@ import lombok.experimental.Accessors;
 @EqualsAndHashCode(callSuper = false)
 public class UserAttendRecordVO {
 
+    @Schema(description = "企微ID")
+    private String weComId;
+
     @Schema(description = "打卡时间 yyyy-MM-dd HH:mm")
     private String checkinTime;
 
@@ -26,7 +29,7 @@ public class UserAttendRecordVO {
     private String location;
 
     @Schema(description = "异常处理状态 null未处理  0处理中 1通过 2失败")
-    private Integer exceptionStatus ;
+    private Integer exceptionStatus;
 
     @Schema(description = "是否补卡")
     private Integer isReissue;

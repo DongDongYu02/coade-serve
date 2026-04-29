@@ -1,7 +1,6 @@
 package cn.dong.coade.modules.cmt.domain.query;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
@@ -12,7 +11,6 @@ import java.util.List;
 public class AttendMonthDataQuery {
 
     @Schema(description = "用户ID")
-    @NotBlank
     private List<String> userIds;
 
     @Schema(description = "年份")
@@ -22,4 +20,8 @@ public class AttendMonthDataQuery {
     @Schema(description = "月份")
     @NotNull
     private Integer month;
+
+    @Schema(description = "查询所有用户")
+    @NotNull
+    private Integer queryAll;
 }

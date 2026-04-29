@@ -10,6 +10,7 @@ import cn.dong.coade.modules.cmt.service.ICmtUserService;
 import cn.dong.coade.modules.cmt.utils.WeComApiUtil;
 import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.infra.util.RedisUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.dynamic.datasource.annotation.DS;
@@ -106,5 +107,32 @@ public class CmtAttendRuleServiceImpl extends ServiceImpl<CmtAttendRuleMapper, C
         return rules.stream().collect(Collectors.toMap(
                 item -> item.getAttendDate().getDayOfMonth(),
                 item -> JSONUtil.toBean(item.getRule(), AttendRuleBO.class)));
+    }
+
+    @Override
+    @DS(GlobalConstants.DataSource.LOCAL_MYSQL)
+    public Map<String, Map<Integer, AttendRuleBO>> getUsersAttendRuleByMonth(List<String> weComIds, Integer year, Integer month) {
+        if (CollUtil.isEmpty(weComIds)) {
+            return Map.of();
+        }
+        LocalDate begin = LocalDate.of(year, month, 1);
+        LocalDate end = begin.plusMonths(1);
+        List<CmtAttendRule> rules = this.lambdaQuery()
+                .ge(CmtAttendRule::getAttendDate, begin)
+                .lt(CmtAttendRule::getAttendDate, end)
+                .in(CmtAttendRule::getWeComId, weComIds)
+                .list();
+        if (rules.isEmpty()) {
+            return Map.of();
+        }
+        return rules.stream()
+                .filter(item -> StrUtil.isNotBlank(item.getWeComId()))
+                .collect(Collectors.groupingBy(
+                        CmtAttendRule::getWeComId,
+                        Collectors.toMap(
+                                item -> item.getAttendDate().getDayOfMonth(),
+                                item -> JSONUtil.toBean(item.getRule(), AttendRuleBO.class),
+                                (a, b) -> a
+                        )));
     }
 }

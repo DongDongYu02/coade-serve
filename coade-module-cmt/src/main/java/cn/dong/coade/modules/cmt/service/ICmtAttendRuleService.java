@@ -5,6 +5,7 @@ import cn.dong.coade.modules.cmt.domain.entity.CmtAttendRule;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
 
 public interface ICmtAttendRuleService extends IService<CmtAttendRule> {
@@ -25,4 +26,9 @@ public interface ICmtAttendRuleService extends IService<CmtAttendRule> {
      * @param month 月份
      */
     Map<Integer, AttendRuleBO> getUserAttendRuleByMonth(String weComId, Integer year, Integer month);
+
+    /**
+     * 获取相关用户当月每天的考勤规则
+     */
+    Map<String, Map<Integer, AttendRuleBO>> getUsersAttendRuleByMonth(List<String> weComIds, Integer year, Integer month);
 }

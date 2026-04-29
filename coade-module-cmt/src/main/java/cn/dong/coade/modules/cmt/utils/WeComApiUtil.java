@@ -103,25 +103,25 @@ public class WeComApiUtil {
         return respJson.getStr("user_ticket");
     }
 
-    public static List<UserAttendRecordVO> getUserAttend(String weComId, LocalDateTime dateBegin, LocalDateTime dateEnd) {
+    public static List<UserAttendRecordVO> getUserAttend(List<String> weComIds, LocalDateTime dateBegin, LocalDateTime dateEnd) {
         // 打卡记录
-        List<UserAttendRecordVO> checkinRecords = new ArrayList<>(getCheckinRecords(weComId, dateBegin, dateEnd));
+        List<UserAttendRecordVO> checkinRecords = new ArrayList<>(getCheckinRecords(weComIds, dateBegin, dateEnd));
         // 补卡后的打卡记录
-        List<UserAttendRecordVO> reissueRecords = getReissueRecords(weComId, dateBegin, dateEnd);
+        List<UserAttendRecordVO> reissueRecords = getReissueRecords(weComIds, dateBegin, dateEnd);
         checkinRecords.addAll(reissueRecords);
 
         return CollUtil.distinct(checkinRecords);
     }
 
-    public static List<UserAttendRecordVO> getUserAttendByMonth(String weComId, int year, int month) {
+    public static List<UserAttendRecordVO> getUserAttendByMonth(List<String> weComIds, int year, int month) {
         // 开始时间
         LocalDateTime begin = LocalDateTime.of(year, month, 1, 0, 0, 0);
         // 结束时间
         LocalDateTime end = begin.plusMonths(1).minusSeconds(1);
         // 打卡记录
-        List<UserAttendRecordVO> checkinRecords = new ArrayList<>(getCheckinRecords(weComId, begin, end));
+        List<UserAttendRecordVO> checkinRecords = new ArrayList<>(getCheckinRecords(weComIds, begin, end));
         // 补卡后的打卡记录
-        List<UserAttendRecordVO> reissueRecords = getReissueRecords(weComId, begin, end);
+        List<UserAttendRecordVO> reissueRecords = getReissueRecords(weComIds, begin, end);
         checkinRecords.addAll(reissueRecords);
         return CollUtil.distinct(checkinRecords);
     }
@@ -311,37 +311,45 @@ public class WeComApiUtil {
     /**
      * 获取员工打卡记录
      */
-    public static List<UserAttendRecordVO> getCheckinRecords(String weComId, LocalDateTime timeBegin, LocalDateTime timeEnd) {
+    public static List<UserAttendRecordVO> getCheckinRecords(List<String> weComIds, LocalDateTime timeBegin, LocalDateTime timeEnd) {
+        if (CollUtil.isEmpty(weComIds)) {
+            return List.of();
+        }
         List<String> deviceSns = SpringUtil.getBean(CoadeProperties.class).getAttendDeviceSn();
-//        if (CollUtil.isEmpty(deviceSns)) {
-//            return List.of();
-//        }
         String accessToken = getAccessToken();
         long startTime = LocalDateTimeUtil.toEpochMilli(timeBegin) / 1000;
         long endTime = LocalDateTimeUtil.toEpochMilli(timeEnd) / 1000;
         String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/hardware/get_hardware_checkin_data?access_token={}", accessToken);
-        JSONObject body = new JSONObject();
-        body.set("filter_type", 2)
-                .set("starttime", startTime)
-                .set("endtime", endTime)
-                .set("useridlist", weComId);
-        String resp = HttpUtil.post(url, JSONUtil.toJsonStr(body));
-        JSONObject respJson = JSONUtil.parseObj(resp);
+        List<List<String>> weComIdsSplit = CollUtil.split(weComIds, 99);
+        List<UserAttendRecordVO> result = new ArrayList<>();
+        weComIdsSplit.forEach(subWeComIds -> {
+            JSONObject body = new JSONObject();
+            body.set("filter_type", 2)
+                    .set("starttime", startTime)
+                    .set("endtime", endTime)
+                    .set("useridlist", subWeComIds);
+            String resp = HttpUtil.post(url, JSONUtil.toJsonStr(body));
+            JSONObject respJson = JSONUtil.parseObj(resp);
 
-        return respJson.getJSONArray("checkindata").stream().filter(item -> {
-            JSONObject checkintime = (JSONObject) item;
-            String deviceSn = checkintime.getStr("device_sn");
-            return deviceSns.contains(deviceSn);
-        }).map(item -> {
-            JSONObject data = (JSONObject) item;
-            String checkinTime = LocalDateTimeUtil.format(LocalDateTimeUtil.of(data.getLong("checkin_time") * 1000), GlobalConstants.DatePattern.Y_M_D_H_M);
-            String location = data.getStr("device_name");
-            UserAttendRecordVO v = new UserAttendRecordVO();
-            v.setCheckinTime(checkinTime);
-            v.setLocation(location);
-            v.setIsReissue(GlobalConstants.INT_NO);
-            return v;
-        }).toList();
+            List<UserAttendRecordVO> list = respJson.getJSONArray("checkindata").stream().filter(item -> {
+                JSONObject checkintime = (JSONObject) item;
+                String deviceSn = checkintime.getStr("device_sn");
+                return deviceSns.contains(deviceSn);
+            }).map(item -> {
+                JSONObject data = (JSONObject) item;
+                String weComId = data.getStr("userid");
+                String checkinTime = LocalDateTimeUtil.format(LocalDateTimeUtil.of(data.getLong("checkin_time") * 1000), GlobalConstants.DatePattern.Y_M_D_H_M);
+                String location = data.getStr("device_name");
+                UserAttendRecordVO v = new UserAttendRecordVO();
+                v.setWeComId(weComId);
+                v.setCheckinTime(checkinTime);
+                v.setLocation(location);
+                v.setIsReissue(GlobalConstants.INT_NO);
+                return v;
+            }).toList();
+            result.addAll(list);
+        });
+        return result;
     }
 
 
@@ -349,40 +357,51 @@ public class WeComApiUtil {
      * 获取员工补卡记录
      * <p>目前的补卡逻辑是新增一条该打卡点的打卡记录，notes为“补卡”</p>
      */
-    public static List<UserAttendRecordVO> getReissueRecords(String weComId, LocalDateTime timeBegin, LocalDateTime timeEnd) {
+    public static List<UserAttendRecordVO> getReissueRecords(List<String> weComIds, LocalDateTime timeBegin, LocalDateTime timeEnd) {
+        if (CollUtil.isEmpty(weComIds)) {
+            return List.of();
+        }
         long startTime = LocalDateTimeUtil.toEpochMilli(timeBegin) / 1000;
         long endTime = LocalDateTimeUtil.toEpochMilli(timeEnd) / 1000;
         String accessToken = getAccessToken();
         String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/checkin/getcheckindata?access_token={}", accessToken);
-        String resp = HttpUtil.post(url, JSONUtil.toJsonStr(Map.of(
-                "opencheckindatatype", 3,
-                "starttime", startTime,
-                "endtime", endTime,
-                "useridlist", List.of(weComId))));
-        JSONObject respJson = JSONUtil.parseObj(resp);
-        if (respJson.getInt("errcode") != 0) {
-            log.error("获取企微打卡数据失败：{}", respJson.getStr("errmsg"));
-            throw new BizException(ApiMessage.INTERNAL_ERROR);
+        List<List<String>> weComIdsSplit = CollUtil.split(weComIds, 99);
+        List<UserAttendRecordVO> result = new ArrayList<>();
+        for (List<String> subWeComIds : weComIdsSplit) {
+            String resp = HttpUtil.post(url, JSONUtil.toJsonStr(Map.of(
+                    "opencheckindatatype", 3,
+                    "starttime", startTime,
+                    "endtime", endTime,
+                    "useridlist", subWeComIds)));
+            JSONObject respJson = JSONUtil.parseObj(resp);
+            if (respJson.getInt("errcode") != 0) {
+                log.error("获取企微打卡数据失败：{}", respJson.getStr("errmsg"));
+                throw new BizException(ApiMessage.INTERNAL_ERROR);
+            }
+            JSONArray checkIndData = respJson.getJSONArray("checkindata");
+            if (CollUtil.isEmpty(checkIndData)) {
+                continue;
+            }
+            // 补卡的记录
+            List<UserAttendRecordVO> list = checkIndData.stream()
+                    .filter(item -> {
+                        String exceptionType = ((JSONObject) item).getStr("exception_type");
+                        return !"未打卡".equals(exceptionType);
+                    })
+                    .map(obj -> {
+                        JSONObject json = (JSONObject) obj;
+                        String weComId = json.getStr("userid");
+                        LocalDateTime time = LocalDateTimeUtil.of(json.getLong("checkin_time") * 1000);
+                        UserAttendRecordVO vo = new UserAttendRecordVO();
+                        vo.setWeComId(weComId);
+                        vo.setCheckinTime(LocalDateTimeUtil.format(time, "yyyy-MM-dd HH:mm"));
+                        vo.setLocation(json.getStr("location_title"));
+                        vo.setIsReissue("已补卡".equals(json.getStr("notes")) ? GlobalConstants.INT_YES : GlobalConstants.INT_NO);
+                        return vo;
+                    }).toList();
+            result.addAll(list);
         }
-        JSONArray checkIndData = respJson.getJSONArray("checkindata");
-        if (CollUtil.isEmpty(checkIndData)) {
-            return List.of();
-        }
-        // 补卡的记录
-        return checkIndData.stream()
-                .filter(item -> {
-                    String exceptionType = ((JSONObject) item).getStr("exception_type");
-                    return !"未打卡".equals(exceptionType);
-                })
-                .map(obj -> {
-                    JSONObject json = (JSONObject) obj;
-                    LocalDateTime time = LocalDateTimeUtil.of(json.getLong("checkin_time") * 1000);
-                    UserAttendRecordVO vo = new UserAttendRecordVO();
-                    vo.setCheckinTime(LocalDateTimeUtil.format(time, "yyyy-MM-dd HH:mm"));
-                    vo.setLocation(json.getStr("location_title"));
-                    vo.setIsReissue("已补卡".equals(json.getStr("notes")) ? GlobalConstants.INT_YES : GlobalConstants.INT_NO);
-                    return vo;
-                }).toList();
+        return result;
     }
 
     public static void test(String weComId, LocalDateTime attendTime) {

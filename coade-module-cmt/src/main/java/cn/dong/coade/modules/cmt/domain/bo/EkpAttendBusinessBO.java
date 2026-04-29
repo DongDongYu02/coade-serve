@@ -7,6 +7,8 @@ import java.time.LocalDateTime;
 @Data
 public class EkpAttendBusinessBO {
 
+    private String ekpId;
+
     private LocalDateTime startTime;
 
     private LocalDateTime endTime;

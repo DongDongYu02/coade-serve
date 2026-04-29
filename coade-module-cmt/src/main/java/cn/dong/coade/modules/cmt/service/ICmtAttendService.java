@@ -177,4 +177,10 @@ public interface ICmtAttendService {
      * 计算当前用户出差天数
      */
     AttendDurationVO getCurrentUserBizTripDuration(AttendBizTripDurationQuery query);
+
+
+    /**
+     * 更新当月所有用户的考勤规则
+     */
+    void updateAttendRuleByMonth(Integer year, Integer month);
 }

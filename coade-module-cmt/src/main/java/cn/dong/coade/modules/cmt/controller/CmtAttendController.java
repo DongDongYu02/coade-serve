@@ -261,7 +261,7 @@ public class CmtAttendController {
     @GetMapping("/user/month/attend")
     @Operation(summary = "查询用户当月考勤数据")
     @ResultTranslate
-    public Result<List<AttendMonthDataVO>> getUserMonthAttend(@ParameterObject AttendMonthDataQuery query) {
+    public Result<List<AttendMonthDataVO>> getUserMonthAttend(@ParameterObject @Validated AttendMonthDataQuery query) {
         List<AttendMonthDataVO> records = attendService.getUserMonthAttendData(query);
         return Result.success(records);
     }

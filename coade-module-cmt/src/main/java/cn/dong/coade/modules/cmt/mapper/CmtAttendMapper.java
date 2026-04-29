@@ -12,7 +12,7 @@ import java.util.List;
 public interface CmtAttendMapper {
 
     @Select("""
-             SELECT sabt.fd_org_id,
+             SELECT sabt.fd_org_id AS ekp_id,
                            sab.fd_bus_start_time AS start_time,
                            sab.fd_bus_end_time AS end_time,
                            sab.fd_process_name AS title
@@ -25,6 +25,26 @@ public interface CmtAttendMapper {
                       AND sab.fd_type = #{type}
             """)
     List<EkpAttendBusinessBO> selectUserEkpAttendBusiness(@Param("ekpId") String ekpId, @Param("beginTime") LocalDateTime beginTime, @Param("endTime") LocalDateTime endTime, @Param("type") Integer type);
+
+    @Select("""
+            <script>
+            SELECT sabt.fd_org_id AS ekp_id,
+                   sab.fd_bus_start_time AS start_time,
+                   sab.fd_bus_end_time AS end_time,
+                   sab.fd_process_name AS title
+            FROM sys_attend_business sab
+                     LEFT JOIN sys_attend_business_target sabt ON sab.fd_id = sabt.fd_business_id
+            WHERE sabt.fd_org_id IN
+            <foreach collection="ekpIds" item="ekpId" open="(" separator="," close=")">
+                #{ekpId}
+            </foreach>
+              AND sab.fd_del_flag = 0
+              AND sab.fd_bus_end_time >= #{beginTime}
+              AND sab.fd_bus_start_time &lt;= #{endTime}
+              AND sab.fd_type = #{type}
+            </script>
+            """)
+    List<EkpAttendBusinessBO> selectUsersEkpAttendBusiness(@Param("ekpIds") List<String> ekpIds, @Param("beginTime") LocalDateTime beginTime, @Param("endTime") LocalDateTime endTime, @Param("type") Integer type);
 
     @Select("""
                         SELECT top 1

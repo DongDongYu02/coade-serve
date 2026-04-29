@@ -110,7 +110,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         String ekpId = loginUser.getExtInfo().get("ekpId").toString();
         LocalDateTime todayBegin = LocalDateTimeUtil.beginOfDay(now);
         LocalDateTime todayEnd = LocalDateTimeUtil.endOfDay(now);
-        List<UserAttendRecordVO> userAttend = WeComApiUtil.getUserAttend(weComId, todayBegin, todayEnd);
+        List<UserAttendRecordVO> userAttend = WeComApiUtil.getUserAttend(List.of(weComId), todayBegin, todayEnd);
         // 获取用户打卡规则
         AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, now);
 //        String[][] range = {{"08:00", "11:30"}, {"12:30", "17:30"}};
@@ -243,7 +243,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         String weComId = loginUser.getExtInfo().get("weComId").toString();
 
         // 用户该月所有原始打卡
-        List<UserAttendRecordVO> records = WeComApiUtil.getUserAttend(weComId, begin, end);
+        List<UserAttendRecordVO> records = WeComApiUtil.getUserAttend(List.of(weComId), begin, end);
 
         // 用户该月每日的考勤规则 map，key = day
         Map<Integer, AttendRuleBO> dayRuleMap = attendRuleService.getUserAttendRuleByMonth(weComId, year, month);
@@ -709,13 +709,6 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     @Override
     public List<AttendMonthDataVO> getUserMonthAttendData(AttendMonthDataQuery query) {
-        if (Objects.isNull(query)
-                || CollUtil.isEmpty(query.getUserIds())
-                || Objects.isNull(query.getYear())
-                || Objects.isNull(query.getMonth())) {
-            throw new BizException(ApiMessage.USER_NOT_FOUND);
-        }
-
         LocalDate monthStart = LocalDate.of(query.getYear(), query.getMonth(), 1);
         LocalDate monthEnd = monthStart.plusMonths(1).minusDays(1);
 
@@ -726,39 +719,60 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
         // 多用户查询：query.getUserIds() 传 CMT 用户ID列表
         List<CmtUser> users = cmtUserService.lambdaQuery()
-                .in(CmtUser::getId, query.getUserIds())
+                .in(GlobalConstants.INT_NO.equals(query.getQueryAll()),CmtUser::getId, query.getUserIds())
                 .list();
 
         if (CollUtil.isEmpty(users)) {
             throw new BizException(ApiMessage.USER_NOT_FOUND);
         }
 
-        Map<String, CmtUser> userMap = users.stream()
-                .filter(Objects::nonNull)
-                .collect(Collectors.toMap(
-                        CmtUser::getId,
-                        item -> item,
-                        (a, b) -> a
-                ));
+        List<String> weComIds = users.stream()
+                .map(CmtUser::getWeComId)
+                .toList();
+        List<String> ekpIds = users.stream()
+                .map(CmtUser::getEkpId)
+                .toList();
+
+        List<UserAttendRecordVO> attendRecords = WeComApiUtil.getUserAttendByMonth(weComIds, query.getYear(), query.getMonth());
+        Map<String, List<UserAttendRecordVO>> userAttendRecordMap = CollUtil.emptyIfNull(attendRecords).stream()
+                .filter(item -> StrUtil.isNotBlank(item.getWeComId()))
+                .collect(Collectors.groupingBy(UserAttendRecordVO::getWeComId));
+
+        Map<String, Map<Integer, AttendRuleBO>> userRuleMap = attendRuleService.getUsersAttendRuleByMonth(
+                weComIds,
+                query.getYear(),
+                query.getMonth()
+        );
+
+        CmtAttendServiceImpl _this = SpringUtil.getBean(this.getClass());
+        List<EkpAttendBusinessBO> leaveInfo = _this.getUsersAttendBizRecords(ekpIds, beginTime, endTime, GlobalConstants.EkpLeaveBizType.LEAVE);
+        List<EkpAttendBusinessBO> tripInfo = _this.getUsersAttendBizRecords(ekpIds, beginTime, endTime, GlobalConstants.EkpLeaveBizType.BIZ_TRIP);
+        List<EkpAttendBusinessBO> outInfo = _this.getUsersAttendBizRecords(ekpIds, beginTime, endTime, GlobalConstants.EkpLeaveBizType.OUTGOING);
+        List<EkpAttendBusinessBO> overtimeInfo = _this.getUsersAttendBizRecords(ekpIds, beginTime, endTime, GlobalConstants.EkpLeaveBizType.OVERTIME);
+        List<CmtAttendReissue> attendReissues = attendReissueService.getUsersReissueRecordsByTimeRange(ekpIds, beginTime, endTime);
+
+        Map<String, List<EkpAttendBusinessBO>> leaveInfoMap = groupBizRecordsByEkpId(leaveInfo);
+        Map<String, List<EkpAttendBusinessBO>> tripInfoMap = groupBizRecordsByEkpId(tripInfo);
+        Map<String, List<EkpAttendBusinessBO>> outInfoMap = groupBizRecordsByEkpId(outInfo);
+        Map<String, List<EkpAttendBusinessBO>> overtimeInfoMap = groupBizRecordsByEkpId(overtimeInfo);
+        Map<String, List<CmtAttendReissue>> attendReissueMap = groupReissueRecordsByEkpId(attendReissues);
 
         List<AttendMonthDataVO> result = new ArrayList<>();
 
         // 按入参 userIds 顺序返回
-        for (String userId : query.getUserIds()) {
-            CmtUser user = userMap.get(userId);
-            if (Objects.isNull(user)) {
-                continue;
-            }
-
+        for (CmtUser user : users) {
             AttendMonthDataVO monthDataVO = buildSingleUserMonthAttendData(
                     user,
-                    query.getYear(),
-                    query.getMonth(),
                     monthStart,
                     monthEnd,
                     today,
-                    beginTime,
-                    endTime
+                    getRecordsByKey(userAttendRecordMap, user.getWeComId()),
+                    getUserRuleMap(userRuleMap, user.getWeComId()),
+                    getRecordsByKey(leaveInfoMap, user.getEkpId()),
+                    getRecordsByKey(tripInfoMap, user.getEkpId()),
+                    getRecordsByKey(outInfoMap, user.getEkpId()),
+                    getRecordsByKey(overtimeInfoMap, user.getEkpId()),
+                    getRecordsByKey(attendReissueMap, user.getEkpId())
             );
 
             result.add(monthDataVO);
@@ -773,7 +787,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 构建单个用户的月考勤数据。
-     *
+     * <p>
      * 多用户查询时，每个用户独立计算，避免不同用户之间的：
      * 1. 打卡记录串数据
      * 2. 请假 / 外出 / 出差 / 加班记录串数据
@@ -781,72 +795,19 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
      * 4. 考勤规则串数据
      */
     private AttendMonthDataVO buildSingleUserMonthAttendData(CmtUser user,
-                                                             Integer year,
-                                                             Integer month,
                                                              LocalDate monthStart,
                                                              LocalDate monthEnd,
                                                              LocalDate today,
-                                                             LocalDateTime beginTime,
-                                                             LocalDateTime endTime) {
-        // 1. 获取本月所有原始打卡记录
-        List<UserAttendRecordVO> checkinRecords = WeComApiUtil.getUserAttend(
-                user.getWeComId(),
-                beginTime,
-                endTime
-        );
-
-        // 2. 获取本月每日考勤规则，key = day
-        Map<Integer, AttendRuleBO> dayRuleMap = attendRuleService.getUserAttendRuleByMonth(
-                user.getWeComId(),
-                year,
-                month
-        );
-
-        CmtAttendServiceImpl _this = SpringUtil.getBean(this.getClass());
-
-        // 3. 获取本月请假 / 出差 / 外出 / 补卡 / 加班记录
-        List<EkpAttendBusinessBO> leaveInfo = List.of();
-        List<EkpAttendBusinessBO> tripInfo = List.of();
-        List<EkpAttendBusinessBO> outInfo = List.of();
-        List<EkpAttendBusinessBO> overtimeInfo = List.of();
-        List<CmtAttendReissue> attendReissues = List.of();
-
-        if (StrUtil.isNotBlank(user.getEkpId())) {
-            leaveInfo = _this.getAttendBizRecords(
-                    user.getEkpId(),
-                    beginTime,
-                    endTime,
-                    GlobalConstants.EkpLeaveBizType.LEAVE
-            );
-
-            tripInfo = _this.getAttendBizRecords(
-                    user.getEkpId(),
-                    beginTime,
-                    endTime,
-                    GlobalConstants.EkpLeaveBizType.BIZ_TRIP
-            );
-
-            outInfo = _this.getAttendBizRecords(
-                    user.getEkpId(),
-                    beginTime,
-                    endTime,
-                    GlobalConstants.EkpLeaveBizType.OUTGOING
-            );
-
-            overtimeInfo = _this.getAttendBizRecords(
-                    user.getEkpId(),
-                    beginTime,
-                    endTime,
-                    GlobalConstants.EkpLeaveBizType.OVERTIME
-            );
-
-            attendReissues = attendReissueService.getUserReissueRecordsByTimeRange(
-                    user.getEkpId(),
-                    beginTime,
-                    endTime
-            );
-        }
-
+                                                             List<UserAttendRecordVO> checkinRecords,
+                                                             Map<Integer, AttendRuleBO> dayRuleMap,
+                                                             List<EkpAttendBusinessBO> leaveInfo,
+                                                             List<EkpAttendBusinessBO> tripInfo,
+                                                             List<EkpAttendBusinessBO> outInfo,
+                                                             List<EkpAttendBusinessBO> overtimeInfo,
+                                                             List<CmtAttendReissue> attendReissues) {
+        Map<Integer, AttendRuleBO> userDayRuleMap = Objects.isNull(dayRuleMap)
+                ? new HashMap<>()
+                : new HashMap<>(dayRuleMap);
         // 4. 原始打卡记录按日期分组
         Map<LocalDate, List<UserAttendRecordVO>> dayRecordMap = CollUtil.emptyIfNull(checkinRecords)
                 .stream()
@@ -854,6 +815,11 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 .collect(Collectors.groupingBy(item ->
                         LocalDateTimeUtil.parse(item.getCheckinTime(), "yyyy-MM-dd HH:mm").toLocalDate()
                 ));
+        Map<LocalDate, List<EkpAttendBusinessBO>> leaveDayMap = groupBizRecordsByDay(leaveInfo, monthStart, monthEnd);
+        Map<LocalDate, List<EkpAttendBusinessBO>> tripDayMap = groupBizRecordsByDay(tripInfo, monthStart, monthEnd);
+        Map<LocalDate, List<EkpAttendBusinessBO>> outDayMap = groupBizRecordsByDay(outInfo, monthStart, monthEnd);
+        Map<LocalDate, List<EkpAttendBusinessBO>> overtimeDayMap = groupBizRecordsByDay(overtimeInfo, monthStart, monthEnd);
+        Map<LocalDate, List<CmtAttendReissue>> reissueDayMap = groupReissueRecordsByDay(attendReissues);
 
         AttendMonthDataVO monthDataVO = new AttendMonthDataVO();
         monthDataVO.setUserId(user.getId());
@@ -893,8 +859,10 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         BigDecimal overtimeDuration = calculateMonthOvertimeDuration(
                 user.getWeComId(),
                 overtimeInfo,
-                beginTime,
-                monthStart.plusMonths(1).atStartOfDay()
+                monthStart.atStartOfDay(),
+                monthStart.plusMonths(1).atStartOfDay(),
+                monthStart,
+                userDayRuleMap
         );
 
         // 实际出勤分钟数，用于格式化成 x天x小时x分钟
@@ -914,10 +882,10 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             List<String> dayData = new ArrayList<>();
 
             // 5.1 当天业务记录
-            List<EkpAttendBusinessBO> dayLeaveInfo = filterBizByDay(leaveInfo, day);
-            List<EkpAttendBusinessBO> dayTripInfo = filterBizByDay(tripInfo, day);
-            List<EkpAttendBusinessBO> dayOutInfo = filterBizByDay(outInfo, day);
-            List<EkpAttendBusinessBO> dayOvertimeInfo = filterBizByDay(overtimeInfo, day);
+            List<EkpAttendBusinessBO> dayLeaveInfo = leaveDayMap.getOrDefault(day, List.of());
+            List<EkpAttendBusinessBO> dayTripInfo = tripDayMap.getOrDefault(day, List.of());
+            List<EkpAttendBusinessBO> dayOutInfo = outDayMap.getOrDefault(day, List.of());
+            List<EkpAttendBusinessBO> dayOvertimeInfo = overtimeDayMap.getOrDefault(day, List.of());
 
             // 先展示业务记录
             dayData.addAll(buildMonthBizTexts("请假", dayLeaveInfo));
@@ -946,13 +914,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             }
 
             // 5.2 获取当天考勤规则
-            AttendRuleBO rule = CollUtil.isEmpty(dayRuleMap)
-                    ? null
-                    : dayRuleMap.get(day.getDayOfMonth());
-
-            if (Objects.isNull(rule)) {
-                rule = attendRuleService.getUserAttendRule(user.getWeComId(), day);
-            }
+            AttendRuleBO rule = getMonthRuleOrLoad(user.getWeComId(), day, monthStart, userDayRuleMap);
 
             if (Objects.isNull(rule) || AttendRuleType.EMPTY.equals(rule.getRuleType())) {
                 if (dayData.isEmpty()) {
@@ -969,7 +931,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             );
 
             // 5.4 当天补卡记录
-            List<CmtAttendReissue> dayReissues = filterReissuesByDay(attendReissues, day);
+            List<CmtAttendReissue> dayReissues = reissueDayMap.getOrDefault(day, List.of());
 
             // 先过滤掉“补卡审批通过后由企微新增的原始打卡”
             dayActualRecords = removeApprovedReissueGeneratedPunch(dayActualRecords, dayReissues);
@@ -1075,7 +1037,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 统计缺卡次数。
-     *
+     * <p>
      * 说明：
      * 1. 只统计明确的缺卡状态。
      * 2. 待打卡、未开始、请假、外出、出差、无需打卡不计入缺卡次数。
@@ -1105,7 +1067,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 统计迟到时长，单位：分钟。
-     *
+     * <p>
      * 说明：
      * 1. 只统计状态为“迟到”的记录。
      * 2. 使用实际打卡时间 checkinTime - 规则打卡时间 ruleCheckinTime。
@@ -1139,7 +1101,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 格式化迟到时长。
-     *
+     * <p>
      * 返回单位：分钟。
      * example:
      * 5
@@ -1163,7 +1125,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 统计早退时长，单位：分钟。
-     *
+     * <p>
      * 说明：
      * 1. 只统计状态为“早退”的记录。
      * 2. 使用规则打卡时间 ruleCheckinTime - 实际打卡时间 checkinTime。
@@ -1197,7 +1159,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 格式化早退时长。
-     *
+     * <p>
      * 返回单位：分钟。
      * example:
      * 5
@@ -1228,7 +1190,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 计算本月出差天数。
-     *
+     * <p>
      * 说明：
      * 1. 出差按自然日统计，和 calculateDays(LocalDate, LocalDate) 保持一致。
      * 2. 如果出差记录跨月，只统计落在当前月份内的日期。
@@ -1305,7 +1267,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 计算本月加班小时数。
-     *
+     * <p>
      * 说明：
      * 1. 加班时长复用 OvertimeDurationCalculator，保持和加班申请处一致。
      * 2. 返回单位是小时，例如：7、7.5。
@@ -1314,13 +1276,15 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     private BigDecimal calculateMonthOvertimeDuration(String weComId,
                                                       List<EkpAttendBusinessBO> overtimeInfo,
                                                       LocalDateTime monthBegin,
-                                                      LocalDateTime monthEndExclusive) {
+                                                      LocalDateTime monthEndExclusive,
+                                                      LocalDate monthStart,
+                                                      Map<Integer, AttendRuleBO> dayRuleMap) {
         if (StrUtil.isBlank(weComId) || CollUtil.isEmpty(overtimeInfo)) {
             return BigDecimal.ZERO;
         }
 
         OvertimeDurationCalculator calculator =
-                new OvertimeDurationCalculator(attendRuleService::getUserAttendRule);
+                new OvertimeDurationCalculator((itemWeComId, date) -> getMonthRuleOrLoad(itemWeComId, date, monthStart, dayRuleMap));
 
         BigDecimal total = BigDecimal.ZERO;
 
@@ -1503,7 +1467,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
     /**
      * 判断当天是否有出勤依据
-     *
+     * <p>
      * 出勤依据包括：
      * 1. 至少一次真实打卡
      * 2. 当天存在外出记录
@@ -1600,6 +1564,10 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         CmtLoginUser loginUser = (CmtLoginUser) authContext.getLoginUser();
         query.setUserEkpId(loginUser.getEkpId());
         return this.getBizTripDurationByEkpUserId(query);
+    }
+
+    @Override
+    public void updateAttendRuleByMonth(Integer year, Integer month) {
     }
 
     private AttendDurationBO calculateDays(LocalDate beginTime, LocalDate endTime) {
@@ -1727,6 +1695,111 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         return AttendRuleWindowResolver.resolveWorkCalcRanges(rule);
     }
 
+    private Map<String, List<EkpAttendBusinessBO>> groupBizRecordsByEkpId(List<EkpAttendBusinessBO> records) {
+        if (CollUtil.isEmpty(records)) {
+            return Map.of();
+        }
+        return records.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> StrUtil.isNotBlank(item.getEkpId()))
+                .collect(Collectors.groupingBy(EkpAttendBusinessBO::getEkpId));
+    }
+
+    private Map<String, List<CmtAttendReissue>> groupReissueRecordsByEkpId(List<CmtAttendReissue> records) {
+        if (CollUtil.isEmpty(records)) {
+            return Map.of();
+        }
+        return records.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> StrUtil.isNotBlank(item.getEkpUserId()))
+                .collect(Collectors.groupingBy(CmtAttendReissue::getEkpUserId));
+    }
+
+    private <T> List<T> getRecordsByKey(Map<String, List<T>> recordsMap, String key) {
+        if (StrUtil.isBlank(key) || Objects.isNull(recordsMap)) {
+            return List.of();
+        }
+        return recordsMap.getOrDefault(key, List.of());
+    }
+
+    private Map<Integer, AttendRuleBO> getUserRuleMap(Map<String, Map<Integer, AttendRuleBO>> userRuleMap, String weComId) {
+        if (StrUtil.isBlank(weComId) || Objects.isNull(userRuleMap)) {
+            return Map.of();
+        }
+        return userRuleMap.getOrDefault(weComId, Map.of());
+    }
+
+    private Map<LocalDate, List<EkpAttendBusinessBO>> groupBizRecordsByDay(List<EkpAttendBusinessBO> source,
+                                                                           LocalDate monthStart,
+                                                                           LocalDate monthEnd) {
+        if (CollUtil.isEmpty(source)) {
+            return Map.of();
+        }
+
+        Map<LocalDate, List<EkpAttendBusinessBO>> result = new HashMap<>();
+        for (EkpAttendBusinessBO record : source) {
+            if (Objects.isNull(record)
+                    || Objects.isNull(record.getStartTime())
+                    || Objects.isNull(record.getEndTime())) {
+                continue;
+            }
+
+            LocalDate start = record.getStartTime().toLocalDate();
+            LocalDate end = record.getEndTime().toLocalDate();
+            if (start.isBefore(monthStart)) {
+                start = monthStart;
+            }
+            if (end.isAfter(monthEnd)) {
+                end = monthEnd;
+            }
+            if (end.isBefore(start)) {
+                continue;
+            }
+
+            for (LocalDate day = start; !day.isAfter(end); day = day.plusDays(1)) {
+                if (filterBizByDay(List.of(record), day).isEmpty()) {
+                    continue;
+                }
+                result.computeIfAbsent(day, key -> new ArrayList<>()).add(record);
+            }
+        }
+        return result;
+    }
+
+    private Map<LocalDate, List<CmtAttendReissue>> groupReissueRecordsByDay(List<CmtAttendReissue> source) {
+        if (CollUtil.isEmpty(source)) {
+            return Map.of();
+        }
+        return source.stream()
+                .filter(Objects::nonNull)
+                .filter(item -> item.getRuleCheckinTime() != null)
+                .collect(Collectors.groupingBy(item -> item.getRuleCheckinTime().toLocalDate()));
+    }
+
+    private AttendRuleBO getMonthRuleOrLoad(String weComId,
+                                            LocalDate day,
+                                            LocalDate cacheMonthStart,
+                                            Map<Integer, AttendRuleBO> dayRuleMap) {
+        if (StrUtil.isBlank(weComId) || Objects.isNull(day)) {
+            return null;
+        }
+        boolean inCacheMonth = Objects.nonNull(cacheMonthStart)
+                && day.getYear() == cacheMonthStart.getYear()
+                && day.getMonthValue() == cacheMonthStart.getMonthValue();
+        if (inCacheMonth && Objects.nonNull(dayRuleMap)) {
+            AttendRuleBO rule = dayRuleMap.get(day.getDayOfMonth());
+            if (Objects.nonNull(rule)) {
+                return rule;
+            }
+        }
+
+        AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, day);
+        if (inCacheMonth && Objects.nonNull(rule) && Objects.nonNull(dayRuleMap)) {
+            dayRuleMap.put(day.getDayOfMonth(), rule);
+        }
+        return rule;
+    }
+
 
     private List<EkpAttendBusinessBO> filterBizByDay(List<EkpAttendBusinessBO> source, LocalDate day) {
         return AttendTimeWindowUtil.filterBizByDay(source, day);
@@ -1832,6 +1905,18 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
     public List<EkpAttendBusinessBO> getAttendBizRecords(String ekpId, LocalDateTime begin, LocalDateTime end, Integer bizType) {
         return cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, begin, end, bizType);
+    }
+
+    @DS(GlobalConstants.DataSource.EKP_SQLSERVER)
+    public List<EkpAttendBusinessBO> getUsersAttendBizRecords(List<String> ekpIds, LocalDateTime begin, LocalDateTime end, Integer bizType) {
+        if (CollUtil.isEmpty(ekpIds)) {
+            return List.of();
+        }
+        List<EkpAttendBusinessBO> result = new ArrayList<>();
+        for (List<String> subEkpIds : CollUtil.split(ekpIds, 500)) {
+            result.addAll(cmtAttendMapper.selectUsersEkpAttendBusiness(subEkpIds, begin, end, bizType));
+        }
+        return result;
     }
 
     private String buildRuleInfoText(AttendRuleBO rule) {
