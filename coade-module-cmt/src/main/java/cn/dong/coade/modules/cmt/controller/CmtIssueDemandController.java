@@ -95,6 +95,13 @@ public class CmtIssueDemandController {
         return Result.success();
     }
 
+    @PutMapping("/{id}/comfirmed")
+    @Operation(summary = "确认完成")
+    public Result<Void> confirmed(@PathVariable String id) {
+        issueDemandService.confirmed(id);
+        return Result.success();
+    }
+
     @GetMapping("/principal/selection")
     @Operation(summary = "负责人列表")
     public Result<List<SelectionVO<String,String>>> getPrincipalSelection(){

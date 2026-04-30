@@ -19,7 +19,7 @@ public class UserAttendInfoVO {
     @Schema(description = "用户打卡记录")
     private List<UserAttendRecordVO> userAttendRecord;
 
-    @Schema(description = "用户考勤业务记录 请假、外出、出差")
+    @Schema(description = "用户考勤业务记录 请假、外出、出差、加班")
     private UserLeaveAttendVO userLeaveAttend;
 
 

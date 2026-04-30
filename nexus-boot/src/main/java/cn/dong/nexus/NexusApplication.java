@@ -1,5 +1,7 @@
 package cn.dong.nexus;
 
+import cn.dong.coade.modules.cmt.service.ICmtAttendRuleService;
+import cn.hutool.extra.spring.SpringUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.annotation.MapperScan;
@@ -10,6 +12,7 @@ import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.net.InetAddress;
+import java.time.LocalDate;
 
 @Slf4j
 @SpringBootApplication(scanBasePackages = {"cn.dong.nexus", "cn.dong.coade"})
@@ -35,6 +38,8 @@ public class NexusApplication {
                 env.getProperty("server.port"),
                 env.getProperty("server.port"),
                 env.getProperty("server.servlet.context-path") == null ? "" : env.getProperty("server.servlet.context-path"));
+
+        SpringUtil.getBean(ICmtAttendRuleService.class).saveAllUserAttendRulesByDate(LocalDate.of(2026,4,30));
     }
 
 }

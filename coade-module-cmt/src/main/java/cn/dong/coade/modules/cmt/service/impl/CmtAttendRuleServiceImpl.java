@@ -16,6 +16,7 @@ import cn.hutool.json.JSONUtil;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,11 +24,13 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CmtAttendRuleServiceImpl extends ServiceImpl<CmtAttendRuleMapper, CmtAttendRule> implements ICmtAttendRuleService {
     private final ICmtUserService cmtUserService;
 
@@ -81,12 +84,18 @@ public class CmtAttendRuleServiceImpl extends ServiceImpl<CmtAttendRuleMapper, C
         if (Objects.isNull(ruleBO)) {
             ruleBO = new AttendRuleBO(new String[][]{}, new int[]{}, AttendRuleType.EMPTY, weComId);
         }
-        CmtAttendRule cmtAttendRule = new CmtAttendRule();
-        cmtAttendRule.setAttendDate(date);
-        cmtAttendRule.setWeComId(weComId);
-        cmtAttendRule.setRule(JSONUtil.toJsonStr(ruleBO));
-        this.save(cmtAttendRule);
-        RedisUtil.set(cacheKey, ruleBO, 15, TimeUnit.DAYS);
+        // lambda 中使用 final 变量
+        final AttendRuleBO finalRuleBO = ruleBO;
+
+        CompletableFuture.runAsync(() -> {
+            log.info("异步写入考勤规则：{}", finalRuleBO);
+            CmtAttendRule cmtAttendRule = new CmtAttendRule();
+            cmtAttendRule.setAttendDate(date);
+            cmtAttendRule.setWeComId(weComId);
+            cmtAttendRule.setRule(JSONUtil.toJsonStr(finalRuleBO));
+            this.save(cmtAttendRule);
+            RedisUtil.set(cacheKey, finalRuleBO, 15, TimeUnit.DAYS);
+        });
         return ruleBO;
 
 

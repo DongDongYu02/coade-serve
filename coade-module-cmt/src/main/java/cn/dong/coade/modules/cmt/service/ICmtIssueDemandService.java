@@ -51,6 +51,10 @@ public interface ICmtIssueDemandService extends IService<CmtIssueDemand> {
     /**
      * 获取负责人列表
      */
-    List<SelectionVO<String,String>> getPrincipalSelection();
+    List<SelectionVO<String, String>> getPrincipalSelection();
 
+    /**
+     * 确认处理完成
+     */
+    void confirmed(String id);
 }

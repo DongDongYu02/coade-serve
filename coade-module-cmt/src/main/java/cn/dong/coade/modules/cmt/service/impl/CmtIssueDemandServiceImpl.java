@@ -37,7 +37,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
@@ -123,7 +122,7 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
                 .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.ACCEPTED)
                 .update();
         WeComCardMessageBO message = new WeComCardMessageBO();
-        String category = CmtLocalConstants.ISSUE_DEMAND_TYPE.DEMAND.equals(issueDemand.getType()) ? "需求开发" : "问题修复";
+        String category = CmtLocalConstants.ISSUE_DEMAND_TYPE.DEMAND.equals(issueDemand.getType()) ? "需求开发" : "系统优化";
         String title = category + "指派通知";
         String description = StrUtil.format("""
                         <div class="gray">{}</div>
@@ -147,7 +146,8 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         }
         this.lambdaUpdate().eq(CmtIssueDemand::getId, issueDemand.getId())
                 .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.IN_PROGRESS)
-                .set(CmtIssueDemand::getExpectedFinishTime, dto.getPlanFinishTime())
+                .set(Objects.isNull(issueDemand.getExpectedFinishTime()), CmtIssueDemand::getExpectedFinishTime, dto.getPlanFinishTime())
+                .set(CmtIssueDemand::getDevStartTime, LocalDateTime.now())
                 .set(CmtIssueDemand::getPlanFinishTime, dto.getPlanFinishTime())
                 .update();
     }
@@ -171,9 +171,9 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
             throw new BizException(ApiMessage.NOT_FOUND);
         }
         this.lambdaUpdate().eq(CmtIssueDemand::getId, issueDemand.getId())
-                .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED)
+                .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_COMFIRM)
                 .set(CmtIssueDemand::getResultFeedback, dto.getResultFeedback())
-                .set(CmtIssueDemand::getActualFinishTime, LocalDate.now())
+                .set(CmtIssueDemand::getActualFinishTime, LocalDateTime.now())
                 .update();
     }
 
@@ -187,6 +187,17 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
             return List.of();
         }
         return users.stream().map(item -> new SelectionVO<>(item.getId(), item.getUsername())).toList();
+    }
+
+    @Override
+    public void confirmed(String id) {
+        CmtIssueDemand issueDemand = this.getById(id);
+        if (Objects.isNull(issueDemand)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        this.lambdaUpdate().eq(CmtIssueDemand::getId, issueDemand.getId())
+                .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED)
+                .update();
     }
 
 

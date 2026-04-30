@@ -54,6 +54,7 @@ public interface CmtLocalConstants {
         Integer COMPLETED = 3;
         Integer REJECTED = 4;
         Integer CLOSED = 5;
+        Integer PENDING_COMFIRM = 6;
     }
 
     interface ISSUE_DEMAND_TYPE {

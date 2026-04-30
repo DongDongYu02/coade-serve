@@ -81,6 +81,7 @@ public class AttendRecordCalculator {
                 leaveInfos,
                 outInfos,
                 tripInfos,
+                List.of(),
                 Collections.emptySet()
         );
     }
@@ -96,6 +97,32 @@ public class AttendRecordCalculator {
                                               List<EkpAttendBusinessBO> leaveInfos,
                                               List<EkpAttendBusinessBO> outInfos,
                                               List<EkpAttendBusinessBO> tripInfos,
+                                              Collection<LocalDate> noNeedCheckinDates) {
+        return calculate(
+                attendDate,
+                actualRecords,
+                rule,
+                leaveInfos,
+                outInfos,
+                tripInfos,
+                List.of(),
+                noNeedCheckinDates
+        );
+    }
+
+    /**
+     * 计算指定日期的考勤结果
+     *
+     * @param overtimeInfos      加班记录。休息日有加班时，实际打卡记录标记为"正常"。
+     * @param noNeedCheckinDates 无需打卡日期配置。命中后，不再生成规则点，也不再判迟到/早退/缺卡。
+     */
+    public List<UserAttendRecordVO> calculate(LocalDate attendDate,
+                                              List<UserAttendRecordVO> actualRecords,
+                                              AttendRuleBO rule,
+                                              List<EkpAttendBusinessBO> leaveInfos,
+                                              List<EkpAttendBusinessBO> outInfos,
+                                              List<EkpAttendBusinessBO> tripInfos,
+                                              List<EkpAttendBusinessBO> overtimeInfos,
                                               Collection<LocalDate> noNeedCheckinDates) {
 
         // 无需打卡日期优先级最高：命中后直接返回“无需打卡”，不再按规则计算异常。
@@ -114,6 +141,9 @@ public class AttendRecordCalculator {
 
         int weekDay = attendDate.getDayOfWeek().getValue(); // 1=周一 ... 7=周日
         if (ArrayUtil.isEmpty(rule.getWorkDays()) || !ArrayUtil.contains(rule.getWorkDays(), weekDay)) {
+            if (CollUtil.isNotEmpty(overtimeInfos)) {
+                return buildOvertimeRestDayResult(attendDate, actualRecords);
+            }
             return sortRawRecords(actualRecords);
         }
 
@@ -194,6 +224,30 @@ public class AttendRecordCalculator {
         vo.setLocation("-");
         vo.setStatus(NO_NEED_CHECKIN_STATUS);
         return Collections.singletonList(vo);
+    }
+
+    /**
+     * 构造休息日有加班记录时的返回结果。
+     *
+     * 说明：
+     * 1. 休息日不生成规则打卡点，不判迟到/早退/缺卡。
+     * 2. 实际打卡记录保留打卡时间和地点，统一标记为"正常"。
+     * 3. 若无实际打卡记录，返回空列表（不产生占位行）。
+     */
+    private List<UserAttendRecordVO> buildOvertimeRestDayResult(LocalDate attendDate,
+                                                                List<UserAttendRecordVO> actualRecords) {
+        List<UserAttendRecordVO> rawRecords = sortRawRecords(actualRecords);
+        if (CollUtil.isEmpty(rawRecords)) {
+            return rawRecords;
+        }
+        for (UserAttendRecordVO record : rawRecords) {
+            record.setRuleCheckinTime(record.getCheckinTime());
+            record.setStatus("正常");
+            if (StrUtil.isBlank(record.getLocation())) {
+                record.setLocation("-");
+            }
+        }
+        return rawRecords;
     }
 
     /**
@@ -1118,12 +1172,21 @@ public class AttendRecordCalculator {
      */
     public UserLeaveAttendVO buildUserTodayLeaveInfo(List<EkpAttendBusinessBO> leaveInfos,
                                                      List<EkpAttendBusinessBO> outInfos,
-                                                     List<EkpAttendBusinessBO> tripInfos) {
+                                                     List<EkpAttendBusinessBO> tripInfos,
+                                                     List<EkpAttendBusinessBO> overtimeInfos) {
         UserLeaveAttendVO vo = new UserLeaveAttendVO();
         vo.setLeaveTimes(formatBizTimes(leaveInfos));
         vo.setOutgoingTimes(formatBizTimes(outInfos));
         vo.setBusinessTripTimes(formatBizTimes(tripInfos));
+        vo.setOvertimeTimes(formatBizTimes(overtimeInfos));
         return vo;
+    }
+
+    /**
+     * 格式化加班时间段（供外部直接调用）
+     */
+    public List<String> formatOvertimeTimes(List<EkpAttendBusinessBO> overtimeInfos) {
+        return formatBizTimes(overtimeInfos);
     }
 
     /**

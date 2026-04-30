@@ -71,6 +71,11 @@ public class CmtIssueDemand {
     private String rejectReason;
 
     /**
+     * 开发开始时间
+     */
+    private LocalDateTime devStartTime;
+
+    /**
      * 计划完成时间
      */
     private LocalDate planFinishTime;
@@ -78,7 +83,7 @@ public class CmtIssueDemand {
     /**
      * 实际完成时间
      */
-    private LocalDate actualFinishTime;
+    private LocalDateTime actualFinishTime;
 
     /**
      * 结果反馈

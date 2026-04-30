@@ -39,6 +39,7 @@ import cn.hutool.core.date.DateTime;
 import cn.hutool.core.date.DateUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.ArrayUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.extra.spring.SpringUtil;
 import com.baomidou.dynamic.datasource.annotation.DS;
@@ -122,7 +123,12 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 //        EkpAttendRuleBO rule =   new EkpAttendRuleBO(range,new int[]{1,2,3,4,5,6},AttendRuleType.FIXED);
         if (Objects.isNull(rule) || AttendRuleType.EMPTY.equals(rule.getRuleType()) || noNeedCheckinDates.contains(now)) {
             userAttend.forEach(item -> item.setStatus("正常"));
-            return new UserAttendInfoVO("无需打卡", userAttend, new UserLeaveAttendVO());
+            UserLeaveAttendVO leaveAttendVO = new UserLeaveAttendVO();
+            if (!GlobalConstants.UserIdentity.SPECIAL.equals(loginUser.getIdentity())) {
+                List<EkpAttendBusinessBO> overtimeInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.OVERTIME);
+                leaveAttendVO.setOvertimeTimes(attendRecordCalculator.formatOvertimeTimes(overtimeInfo));
+            }
+            return new UserAttendInfoVO("无需打卡", userAttend, leaveAttendVO);
         }
 
         String ruleInfo = this.buildRuleInfoText(rule);
@@ -172,15 +178,19 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         List<EkpAttendBusinessBO> outInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.OUTGOING);
         // 出差记录
         List<EkpAttendBusinessBO> tripInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.BIZ_TRIP);
+        // 加班记录
+        List<EkpAttendBusinessBO> overtimeInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.OVERTIME);
 
-        UserLeaveAttendVO userLeaveAttendVO = attendRecordCalculator.buildUserTodayLeaveInfo(leaveInfo, outInfo, tripInfo);
+        UserLeaveAttendVO userLeaveAttendVO = attendRecordCalculator.buildUserTodayLeaveInfo(leaveInfo, outInfo, tripInfo, overtimeInfo);
         userAttend = attendRecordCalculator.calculate(
                 now,
                 userAttend,
                 rule,
                 leaveInfo,
                 outInfo,
-                tripInfo
+                tripInfo,
+                overtimeInfo,
+                Collections.emptySet()
         );
 
         // 将补卡记录的审批结果应用到打卡记录上
@@ -989,7 +999,9 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                     rule,
                     dayLeaveInfo,
                     dayOutInfo,
-                    dayTripInfo
+                    dayTripInfo,
+                    dayOvertimeInfo,
+                    Collections.emptySet()
             );
 
             // 5.10 回填补卡审批状态
@@ -1514,7 +1526,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
      * 构建月考勤业务记录文案：请假 / 外出 / 出差 / 加班。
      */
     private List<String> buildMonthBizTexts(String bizName, List<EkpAttendBusinessBO> records) {
-        return AttendBizTextFormatter.formatBizTexts(bizName, records, "yyyy-MM-dd HH:mm");
+        return AttendBizTextFormatter.formatBizTexts(bizName, records, "MM-dd HH:mm");
     }
 
     /**
@@ -1604,45 +1616,73 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             return buildAttendDurationBO(BigDecimal.ZERO, "0小时");
         }
 
-        // 只取开始当天的考勤规则
-        LocalDate beginDate = beginTime.toLocalDate();
-        AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, beginDate);
-        if (rule == null || rule.getRuleType() == AttendRuleType.EMPTY) {
-            return buildAttendDurationBO(BigDecimal.ZERO, "0小时");
-        }
-
-        // 获取“用于计算时长”的时间段
-        String[][] attendCalcRanges = getLeaveCalcRanges(rule);
-
         long totalMinutes = 0L;
-        LocalDate currentDate = beginDate;
+        long formatStandardMinutesPerDay = 0L;
+        LocalDate beginDate = beginTime.toLocalDate();
         LocalDate endDate = endTime.toLocalDate();
 
-        // 只按开始当天规则，套用到整个区间的每一天
-        while (!currentDate.isAfter(endDate)) {
-            for (String[] range : attendCalcRanges) {
-                LocalDateTime workStart = LocalDateTime.of(currentDate, LocalTime.parse(range[0]));
-                LocalDateTime workEnd = LocalDateTime.of(currentDate, LocalTime.parse(range[1]));
-
-                LocalDateTime actualStart = beginTime.isAfter(workStart) ? beginTime : workStart;
-                LocalDateTime actualEnd = endTime.isBefore(workEnd) ? endTime : workEnd;
-
-                if (actualEnd.isAfter(actualStart)) {
-                    totalMinutes += Duration.between(actualStart, actualEnd).toMinutes();
-                }
+        for (LocalDate currentDate = beginDate; !currentDate.isAfter(endDate); currentDate = currentDate.plusDays(1)) {
+            if (noNeedCheckinDates.contains(currentDate)) {
+                continue;
             }
-            currentDate = currentDate.plusDays(1);
+
+            AttendRuleBO rule = attendRuleService.getUserAttendRule(weComId, currentDate);
+            if (Objects.isNull(rule) || AttendRuleType.EMPTY.equals(rule.getRuleType())) {
+                continue;
+            }
+
+            int weekDay = currentDate.getDayOfWeek().getValue();
+            if (rule.getWorkDays() == null || !ArrayUtil.contains(rule.getWorkDays(), weekDay)) {
+                continue;
+            }
+
+            String[][] attendCalcRanges = getLeaveCalcRanges(rule);
+            long dayMinutes = calculateAttendMinutesInRanges(currentDate, beginTime, endTime, attendCalcRanges);
+            if (dayMinutes <= 0) {
+                continue;
+            }
+
+            totalMinutes += dayMinutes;
+
+            long standardMinutesPerDay = calculateRuleMinutes(attendCalcRanges);
+            if (formatStandardMinutesPerDay <= 0 && standardMinutesPerDay > 0) {
+                formatStandardMinutesPerDay = standardMinutesPerDay;
+            }
         }
 
         BigDecimal duration = BigDecimal.valueOf(totalMinutes)
                 .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP)
                 .stripTrailingZeros();
 
-        // 格式化时也按开始当天的标准工时算
-        long standardMinutesPerDay = calculateRuleMinutes(attendCalcRanges);
-        String durationFormat = formatAttendDuration(totalMinutes, standardMinutesPerDay);
-
+        String durationFormat = formatAttendDuration(totalMinutes, formatStandardMinutesPerDay);
         return buildAttendDurationBO(duration, durationFormat);
+    }
+
+    private long calculateAttendMinutesInRanges(LocalDate currentDate,
+                                                LocalDateTime beginTime,
+                                                LocalDateTime endTime,
+                                                String[][] attendCalcRanges) {
+        if (attendCalcRanges == null || attendCalcRanges.length == 0) {
+            return 0L;
+        }
+
+        long totalMinutes = 0L;
+        for (String[] range : attendCalcRanges) {
+            if (range == null || range.length < 2) {
+                continue;
+            }
+
+            LocalDateTime workStart = LocalDateTime.of(currentDate, LocalTime.parse(range[0]));
+            LocalDateTime workEnd = LocalDateTime.of(currentDate, LocalTime.parse(range[1]));
+
+            LocalDateTime actualStart = beginTime.isAfter(workStart) ? beginTime : workStart;
+            LocalDateTime actualEnd = endTime.isBefore(workEnd) ? endTime : workEnd;
+
+            if (actualEnd.isAfter(actualStart)) {
+                totalMinutes += Duration.between(actualStart, actualEnd).toMinutes();
+            }
+        }
+        return totalMinutes;
     }
 
     /**
