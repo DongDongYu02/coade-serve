@@ -2,6 +2,7 @@ package cn.dong.coade.modules.cmt.mapper;
 
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttachmentBO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
+import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
 import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -65,4 +66,12 @@ public interface CmtEkpMapper {
             delete FROM sys_notify_todo WHERE fd_model_id = #{reviewId}
             """)
     void deleteReviewTodo(@Param("reviewId") String reviewId);
+
+    @Select("""
+            SELECT fd_name AS username,fd_weixin_id AS we_com_id FROM third_wxwork_oms_init
+            WHERE fd_status = 1
+            """)
+    List<CmtUser> selectNoMatchedWeComUsers();
+
+
 }

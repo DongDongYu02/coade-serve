@@ -8,6 +8,7 @@ import cn.dong.coade.modules.cmt.domain.vo.CmtUserPermissionVO;
 import cn.dong.coade.modules.cmt.domain.vo.CmtUserSelectionVO;
 import cn.dong.coade.modules.cmt.domain.vo.CmtUserVO;
 import cn.dong.coade.modules.cmt.mapper.CmtUserMapper;
+import cn.dong.coade.modules.cmt.service.CmtEkpService;
 import cn.dong.coade.modules.cmt.service.ICmtUserPermissionService;
 import cn.dong.coade.modules.cmt.service.ICmtUserService;
 import cn.dong.nexus.common.constants.GlobalConstants;
@@ -31,6 +32,7 @@ import java.util.stream.Collectors;
 public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> implements ICmtUserService {
 
     private final ICmtUserPermissionService cmtUserPermissionService;
+    private final CmtEkpService ekpService;
 
     @Override
     public IPage<CmtUserVO> getPageList(CmtUserQuery query) {
@@ -56,6 +58,13 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
                 item.setDept(dept.split("—")[0]);
             }
         });
+        List<CmtUser> noMatchedWeComUsers = ekpService.getNoMatchedWeComUsers();
+        if (CollUtil.isNotEmpty(noMatchedWeComUsers)) {
+            noMatchedWeComUsers.forEach(item -> {
+                item.setIdentity(GlobalConstants.UserIdentity.SPECIAL);
+            });
+        }
+        users.addAll(noMatchedWeComUsers);
         return users;
     }
 
@@ -99,6 +108,9 @@ public class CmtUserServiceImpl extends ServiceImpl<CmtUserMapper, CmtUser> impl
             // 已存在：如果有变化则更新
             if (needUpdate(dbUser, incoming)) {
                 incoming.setId(dbUser.getId());
+                if (dbUser.getIdentity().equals(GlobalConstants.UserIdentity.SPECIAL)) {
+                    incoming.setIdentity(GlobalConstants.UserIdentity.NORMAL);
+                }
                 toUpdate.add(incoming);
             }
         }

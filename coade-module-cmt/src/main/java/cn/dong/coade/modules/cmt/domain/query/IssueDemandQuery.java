@@ -18,7 +18,7 @@ import java.util.Objects;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-@Schema(description = "CMT用户 列表查询对象")
+@Schema(description = "问题需求 列表查询对象")
 public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
 
     @Schema(description = "类型")
@@ -53,7 +53,7 @@ public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
             List<Integer> finishedStatuses = List.of(
                     CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED,
                     CmtLocalConstants.ISSUE_DEMAND_STATUS.REJECTED,
-                    CmtLocalConstants.ISSUE_DEMAND_STATUS.CLOSED
+                    CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED
             );
 
             if (GlobalConstants.INT_YES.equals(isOverdue)) {

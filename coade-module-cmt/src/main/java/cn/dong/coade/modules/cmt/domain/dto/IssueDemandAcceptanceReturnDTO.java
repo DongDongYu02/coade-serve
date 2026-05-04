@@ -8,16 +8,26 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
-@Schema(description = "完成评估 DTO")
-public class IssueDemandAssessmentedDTO {
+@Schema(description = "问题需求验收退回整改 DTO")
+public class IssueDemandAcceptanceReturnDTO {
 
-    @Schema(description = "主键")
+    @Schema(description = "ID")
     @NotBlank
     private String id;
 
+    @Schema(description = "补充内容")
+    @NotBlank
+    private String description;
+
+    @Schema(description = "补充附件IDs")
+    private List<String> attachmentIds;
+
+    @Schema(description = "期望完成时间")
     @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL, timezone = GlobalConstants.ZoneTime.GMT8)
     @NotNull
-    private LocalDateTime planFinishTime;
+    private LocalDateTime expectedFinishTime;
+
 }

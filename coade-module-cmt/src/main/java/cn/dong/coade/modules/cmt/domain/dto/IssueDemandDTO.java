@@ -1,14 +1,16 @@
 package cn.dong.coade.modules.cmt.domain.dto;
 
 import cn.dong.coade.modules.cmt.domain.entity.CmtIssueDemand;
+import cn.dong.nexus.common.constants.GlobalConstants;
 import cn.dong.nexus.core.base.BaseDTO;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 
-import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Data
@@ -36,7 +38,8 @@ public class IssueDemandDTO extends BaseDTO<CmtIssueDemand> {
     private String description;
 
     @Schema(description = "期望完成时间")
-    private LocalDate expectedFinishTime;
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDateTime expectedFinishTime;
 
     @Schema(description = "附件ID")
     private List<String> attachmentIds;

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -38,7 +37,7 @@ public class IssueDemandVO {
 
     @Schema(description = "期望完成时间")
     @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDate expectedFinishTime;
+    private LocalDateTime expectedFinishTime;
 
     @Schema(description = "负责人Id")
     private String principalUserId;
@@ -51,17 +50,39 @@ public class IssueDemandVO {
 
     @Schema(description = "计划完成时间")
     @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDate planFinishTime;
+    private LocalDateTime planFinishTime;
 
+    @Schema(description = "开发开始时间")
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDateTime devStartTime;
+
+    @Schema(description = "作废时间")
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDateTime voidedTime;
 
     @Schema(description = "实际完成时间")
     @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL_ONLY_DATE, timezone = GlobalConstants.ZoneTime.GMT8)
-    private LocalDate actualFinishTime;
+    private LocalDateTime actualFinishTime;
 
+    @Schema(description = "验收通过时间")
+    @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL, timezone = GlobalConstants.ZoneTime.GMT8)
+    private LocalDateTime acceptanceTime;
 
     @Schema(description = "创建时间")
     @JsonFormat(pattern = GlobalConstants.DatePattern.NORMAL, timezone = GlobalConstants.ZoneTime.GMT8)
     private LocalDateTime createTime;
 
+    @Schema(description = "驳回时间")
+    private LocalDateTime rejectTime;
+
+
+    @Schema(description = "开发耗时")
+    private String devCostTime;
+
+    @Schema(description = "开发是否逾期")
+    private Integer devIsOverdue;
+
+    @Schema(description = "验收是否逾期")
+    private Integer acceptanceIsOverdue;
 
 }

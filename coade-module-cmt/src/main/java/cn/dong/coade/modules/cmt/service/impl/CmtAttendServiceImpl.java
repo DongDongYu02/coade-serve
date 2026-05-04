@@ -734,7 +734,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
 
 
         IPage<CmtUser> userPage = cmtUserService.lambdaQuery()
-                .eq(StrUtil.isNotBlank(query.getDept()),CmtUser::getDept,query.getDept())
+                .eq(StrUtil.isNotBlank(query.getDept()), CmtUser::getDept, query.getDept())
                 .in(CollUtil.isNotEmpty(query.getUserIds()), CmtUser::getId, query.getUserIds())
                 .page(query.toPage());
         IPage<AttendMonthDataVO> page = PageUtil.convertPage(userPage, AttendMonthDataVO.class);
@@ -2080,7 +2080,16 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         }
         // 审批通过 添加企微补卡记录
         if (GlobalConstants.AttendReissueApprovalResult.APPROVED.equals(dto.getIsApproved())) {
-            WeComApiUtil.addUserAttend(cmtUser.getWeComId(), attendReissue.getRuleCheckinTime());
+            AttendRuleBO attendRule = attendRuleService.getUserAttendRule(cmtUser.getWeComId(), attendReissue.getRuleCheckinTime().toLocalDate());
+            LocalDateTime dayBegin = LocalDateTimeUtil.beginOfDay(attendReissue.getRuleCheckinTime());
+            LocalDateTime dayEnd = LocalDateTimeUtil.endOfDay(attendReissue.getRuleCheckinTime());
+            List<UserAttendRecordVO> userAttendRecords = WeComApiUtil.getUserAttend(List.of(cmtUser.getWeComId()), dayBegin, dayEnd);
+            LocalDateTime weComReissueTime = resolveWeComReissueTime(attendReissue, attendRule, userAttendRecords);
+            if (!Objects.equals(weComReissueTime, attendReissue.getRuleCheckinTime())) {
+                log.info("补卡企微写入时间已调整，用户:{}, 原规则时间:{}, 实际写入企微时间:{}",
+                        cmtUser.getWeComId(), attendReissue.getRuleCheckinTime(), weComReissueTime);
+            }
+            WeComApiUtil.addUserAttend(cmtUser.getWeComId(), weComReissueTime);
         } else {
             // 审批被驳回 将蓝凌的审批流程删除
             cmtEkpService.deleteEkpReview(dto.getEkpReviewId());
@@ -2089,6 +2098,66 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
                 .set(CmtAttendReissue::getIsApproved, dto.getIsApproved())
                 .eq(CmtAttendReissue::getEkpReviewId, dto.getEkpReviewId())
                 .update();
+    }
+
+    private LocalDateTime resolveWeComReissueTime(CmtAttendReissue attendReissue,
+                                                  AttendRuleBO attendRule,
+                                                  List<UserAttendRecordVO> userAttendRecords) {
+        LocalDateTime ruleCheckinTime = attendReissue.getRuleCheckinTime();
+        if (Objects.isNull(ruleCheckinTime)
+                || Objects.isNull(attendRule)
+                || CollUtil.isEmpty(userAttendRecords)) {
+            return ruleCheckinTime;
+        }
+
+        LocalDateTime previousOffDutyTime = resolvePreviousOffDutyTime(attendRule, ruleCheckinTime);
+        if (Objects.isNull(previousOffDutyTime)) {
+            return ruleCheckinTime;
+        }
+
+        LocalDateTime weComDeadline = resolveWeComPreviousOffDutyDeadline(previousOffDutyTime, ruleCheckinTime);
+        boolean previousOffDutyLatePunch = userAttendRecords.stream()
+                .filter(item -> StrUtil.isNotBlank(item.getCheckinTime()))
+                .map(item -> LocalDateTimeUtil.parse(item.getCheckinTime(), "yyyy-MM-dd HH:mm"))
+                .anyMatch(checkinTime -> !checkinTime.isBefore(weComDeadline)
+                        && checkinTime.isBefore(ruleCheckinTime));
+
+        return previousOffDutyLatePunch ? previousOffDutyTime : ruleCheckinTime;
+    }
+
+    private LocalDateTime resolvePreviousOffDutyTime(AttendRuleBO attendRule, LocalDateTime ruleCheckinTime) {
+        String[][] timeRanges = AttendRuleWindowResolver.resolveAttendRecordRanges(attendRule);
+        if (timeRanges == null || timeRanges.length < 2) {
+            return null;
+        }
+
+        LocalTime ruleTime = ruleCheckinTime.toLocalTime();
+        for (int i = 1; i < timeRanges.length; i++) {
+            String[] previousRange = timeRanges[i - 1];
+            String[] currentRange = timeRanges[i];
+            if (previousRange == null
+                    || currentRange == null
+                    || previousRange.length < 2
+                    || currentRange.length < 1
+                    || StrUtil.isBlank(previousRange[1])
+                    || StrUtil.isBlank(currentRange[0])) {
+                continue;
+            }
+
+            LocalTime previousOffDuty = LocalTime.parse(previousRange[1]);
+            LocalTime currentOnDuty = LocalTime.parse(currentRange[0]);
+            if (!currentOnDuty.equals(ruleTime) || !previousOffDuty.isBefore(currentOnDuty)) {
+                continue;
+            }
+            return ruleCheckinTime.toLocalDate().atTime(previousOffDuty);
+        }
+        return null;
+    }
+
+    private LocalDateTime resolveWeComPreviousOffDutyDeadline(LocalDateTime previousOffDutyTime,
+                                                             LocalDateTime currentOnDutyTime) {
+        long halfBreakSeconds = Duration.between(previousOffDutyTime, currentOnDutyTime).getSeconds() / 2;
+        return previousOffDutyTime.plusSeconds(halfBreakSeconds);
     }
 
     @Override

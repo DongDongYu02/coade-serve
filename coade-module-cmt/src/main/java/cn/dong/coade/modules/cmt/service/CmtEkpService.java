@@ -360,4 +360,9 @@ public class CmtEkpService {
         return body;
 
     }
+
+
+    public List<CmtUser> getNoMatchedWeComUsers() {
+        return cmtEkpMapper.selectNoMatchedWeComUsers();
+    }
 }

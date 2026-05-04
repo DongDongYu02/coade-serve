@@ -1,9 +1,6 @@
 package cn.dong.coade.modules.cmt.controller;
 
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandAssessmentedDTO;
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandCompletedDTO;
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandDTO;
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandRejectDTO;
+import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.query.IssueDemandQuery;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandDetailVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandVO;
@@ -95,17 +92,31 @@ public class CmtIssueDemandController {
         return Result.success();
     }
 
-    @PutMapping("/{id}/comfirmed")
-    @Operation(summary = "确认完成")
-    public Result<Void> confirmed(@PathVariable String id) {
-        issueDemandService.confirmed(id);
+    @PutMapping("/{id}/voided")
+    @Operation(summary = "作废")
+    public Result<Void> voided(@RequestBody IssueDemandVoidedDTO dto) {
+        issueDemandService.voided(dto);
+        return Result.success();
+    }
+
+    @PutMapping("/{id}/acceptance/pass")
+    @Operation(summary = "验收通过")
+    public Result<Void> acceptancePass(@PathVariable String id) {
+        issueDemandService.acceptancePass(id);
+        return Result.success();
+    }
+
+    @PutMapping("/{id}/acceptance/return")
+    @Operation(summary = "退回整改")
+    public Result<Void> acceptanceReturn(@RequestBody IssueDemandAcceptanceReturnDTO dto) {
+        issueDemandService.acceptanceReturn(dto);
         return Result.success();
     }
 
     @GetMapping("/principal/selection")
     @Operation(summary = "负责人列表")
-    public Result<List<SelectionVO<String,String>>> getPrincipalSelection(){
-        List<SelectionVO<String,String>> result = issueDemandService.getPrincipalSelection();
+    public Result<List<SelectionVO<String, String>>> getPrincipalSelection() {
+        List<SelectionVO<String, String>> result = issueDemandService.getPrincipalSelection();
         return Result.success(result);
     }
 

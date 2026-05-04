@@ -5,7 +5,6 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Data
@@ -49,11 +48,6 @@ public class CmtIssueDemand {
     private String proposeUserName;
 
     /**
-     * 期望完成时间
-     */
-    private LocalDate expectedFinishTime;
-
-    /**
      * 负责人
      */
     private String principalUserId;
@@ -71,19 +65,40 @@ public class CmtIssueDemand {
     private String rejectReason;
 
     /**
-     * 开发开始时间
+     * 作废原因
      */
-    private LocalDateTime devStartTime;
+    private String voidedReason;
+
+    /**
+     * 期望完成时间
+     */
+    private LocalDateTime expectedFinishTime;
 
     /**
      * 计划完成时间
      */
-    private LocalDate planFinishTime;
+    private LocalDateTime planFinishTime;
+
+    /**
+     * 开发开始时间
+     */
+    private LocalDateTime devStartTime;
+
 
     /**
      * 实际完成时间
      */
     private LocalDateTime actualFinishTime;
+
+    /**
+     * 作废时间
+     */
+    private LocalDateTime voidedTime;
+
+    /**
+     * 验收通过时间
+     */
+    private LocalDateTime acceptanceTime;
 
     /**
      * 结果反馈

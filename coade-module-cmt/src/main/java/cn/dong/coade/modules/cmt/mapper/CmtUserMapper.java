@@ -16,16 +16,20 @@ public interface CmtUserMapper extends BaseMapper<CmtUser> {
     List<EkpWecomUserMappingBO> selectEkpWecomUserMapping();
 
     @Select("""
-            SELECT worm.fd_ekp_id AS ekp_id,
-                               worm.fd_app_pk_id AS wecom_id,
-                               hpi.fd_name AS username,
-                               hpi.fd_mobile_no AS phone,
-                               soe2.fd_name AS dept,
-                               soe2.fd_id AS dept_id
-                        FROM wxwork_oms_relation_model worm
-                        INNER JOIN hr_staff_person_info hpi ON hpi.fd_id = worm.fd_ekp_id
-                        INNER JOIN sys_org_element soe1 ON hpi.fd_id = soe1.fd_id
-                        INNER JOIN sys_org_element soe2 ON soe1.fd_parentid = soe2.fd_id
+            SELECT
+              worm.fd_ekp_id AS ekp_id,
+              worm.fd_app_pk_id AS wecom_id,
+              hpi.fd_name AS username,
+              hpi.fd_mobile_no AS phone,
+              soe2.fd_name AS dept,
+              soe2.fd_id AS dept_id
+            FROM
+              wxwork_oms_relation_model worm
+              INNER JOIN hr_staff_person_info hpi ON hpi.fd_id = worm.fd_ekp_id
+              INNER JOIN sys_org_element soe1 ON hpi.fd_id = soe1.fd_id
+              LEFT JOIN sys_org_element soe2 ON soe2.fd_id = ISNULL(soe1.fd_parentid, soe1.fd_pre_dept_id)
+            WHERE
+              ISNULL(hpi.fd_status, '') <> 'leave'
             """)
     List<CmtUser> selectEkpWeComUsers();
 

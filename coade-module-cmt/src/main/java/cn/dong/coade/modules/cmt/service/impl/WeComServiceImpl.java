@@ -37,9 +37,9 @@ public class WeComServiceImpl implements IWeComService {
         WeComUserInfoDTO weComUserInfo = WeComApiUtil.getUserInfo(dto.getCode());
 //        WeComUserInfoDTO weComUserInfo = new WeComUserInfoDTO();
 //        weComUserInfo.setAvatar("https://wework.qpic.cn/wwpic/850073_Rdvw2E97RC6aRUi_1667200914/0");
-//        weComUserInfo.setUserId("DaiYangFan");
+//        weComUserInfo.setUserId("LinNa");
         CmtUser user = cmtUserService.lambdaQuery().eq(CmtUser::getWeComId, weComUserInfo.getUserId()).one();
-        if (Objects.isNull(user)) {
+        if (Objects.isNull(user) || user.getIdentity().equals(GlobalConstants.UserIdentity.SPECIAL)) {
             String username = WeComApiUtil.getUsername(weComUserInfo.getUserId());
             // 用户还没有关联蓝凌
             user = new CmtUser();

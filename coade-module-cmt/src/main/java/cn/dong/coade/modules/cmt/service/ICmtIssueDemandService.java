@@ -1,9 +1,6 @@
 package cn.dong.coade.modules.cmt.service;
 
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandAssessmentedDTO;
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandCompletedDTO;
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandDTO;
-import cn.dong.coade.modules.cmt.domain.dto.IssueDemandRejectDTO;
+import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.CmtIssueDemand;
 import cn.dong.coade.modules.cmt.domain.query.IssueDemandQuery;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandDetailVO;
@@ -54,7 +51,17 @@ public interface ICmtIssueDemandService extends IService<CmtIssueDemand> {
     List<SelectionVO<String, String>> getPrincipalSelection();
 
     /**
-     * 确认处理完成
+     * 验收通过
      */
-    void confirmed(String id);
+    void acceptancePass(String id);
+
+    /**
+     * 作废
+     */
+    void voided(IssueDemandVoidedDTO dto);
+
+    /**
+     * 退回整改
+     */
+    void acceptanceReturn(IssueDemandAcceptanceReturnDTO dto);
 }

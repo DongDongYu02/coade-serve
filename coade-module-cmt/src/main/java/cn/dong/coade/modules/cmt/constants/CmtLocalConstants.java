@@ -49,12 +49,30 @@ public interface CmtLocalConstants {
 
     interface ISSUE_DEMAND_STATUS {
         Integer PENDING = 0;
-        Integer ACCEPTED = 1;
+        /**
+         * 评估中
+         */
+        Integer ASSESSING = 1;
+        /**
+         * 开发中
+         */
         Integer IN_PROGRESS = 2;
+        /**
+         * 完成
+         */
         Integer COMPLETED = 3;
+        /**
+         * 驳回
+         */
         Integer REJECTED = 4;
-        Integer CLOSED = 5;
-        Integer PENDING_COMFIRM = 6;
+        /**
+         * 作废
+         */
+        Integer VOIDED = 5;
+        /**
+         * 待验收
+         */
+        Integer PENDING_ACCEPT = 6;
     }
 
     interface ISSUE_DEMAND_TYPE {

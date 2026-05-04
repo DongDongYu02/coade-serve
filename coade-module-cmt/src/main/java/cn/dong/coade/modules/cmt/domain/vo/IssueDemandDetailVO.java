@@ -82,4 +82,16 @@ public class IssueDemandDetailVO {
     @Schema(description = "附件")
     private List<AttachmentVO> attachments;
 
+    @Schema(description = "开发耗时")
+    private String devCostTime;
+
+    @Schema(description = "开发是否逾期")
+    private Integer devIsOverdue;
+
+    @Schema(description = "验收是否逾期")
+    private Integer acceptanceIsOverdue;
+
+    @Schema(description = "总耗时")
+    private String totalCostTime;
+
 }

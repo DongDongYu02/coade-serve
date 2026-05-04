@@ -17,7 +17,6 @@ public class CmtUserJob {
     private final ICmtUserService cmtUserService;
     private final ICmtAttendRuleService cmtAttendRuleService;
 
-
     @Scheduled(cron = "0 0 0 * * *")
     public void syncUsersFromEkp() {
         List<CmtUser> ekpUsers = cmtUserService.getUsersFromEkp();
