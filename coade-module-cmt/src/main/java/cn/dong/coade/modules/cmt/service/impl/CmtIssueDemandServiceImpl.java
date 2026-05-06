@@ -24,10 +24,12 @@ import cn.dong.nexus.core.config.properties.CoadeProperties;
 import cn.dong.nexus.core.exception.BizException;
 import cn.dong.nexus.core.resmapping.ResMappingUtil;
 import cn.dong.nexus.core.security.context.IAuthContext;
+import cn.dong.nexus.core.security.context.LoginUser;
 import cn.dong.nexus.core.util.PageUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -72,28 +74,48 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
     @Override
     public List<IssueDemandVO> getList(IssueDemandQuery query) {
         QueryWrapper<CmtIssueDemand> queryWrapper = query.toQueryWrapper();
+
+        LoginUser loginUser = authContext.getLoginUserOrThrow();
+        String loginUserId = loginUser.getId();
+        boolean isAdmin = GlobalConstants.UserIdentity.ADMIN.equals(loginUser.getIdentity());
+
+        Integer onlyProposer = query.getOnlyProposer();
+
+        LambdaQueryWrapper<CmtIssueDemand> lambda = queryWrapper.lambda();
+
         // 查询最近三个月的记录
-        queryWrapper.lambda()
-                .gt(CmtIssueDemand::getCreateTime, LocalDateTime.now().minusMonths(3))
-                .or(!GlobalConstants.UserIdentity.ADMIN.equals(authContext.getLoginUser().getIdentity()),
-                        wrapper ->
-                                wrapper.eq(CmtIssueDemand::getCreateBy, authContext.getLoginUser().getId())
-                                        .or()
-                                        .eq(CmtIssueDemand::getPrincipalUserId, authContext.getLoginUser().getId())
-                );
+        lambda.gt(CmtIssueDemand::getCreateTime, LocalDateTime.now().minusMonths(3));
+
+        /*
+         * onlyProposer = 1：只看自己的，查询 创建人是自己 或 负责人是自己
+         * onlyProposer = 0：管理员查全部，非管理员查自己的或负责人是自己的
+         */
+        boolean needOnlySelf = Objects.equals(onlyProposer, 1) || !isAdmin;
+
+        if (needOnlySelf) {
+            lambda.and(wrapper ->
+                    wrapper.eq(CmtIssueDemand::getCreateBy, loginUserId)
+                            .or()
+                            .eq(CmtIssueDemand::getPrincipalUserId, loginUserId)
+            );
+        }
+
         List<CmtIssueDemand> records = this.list(queryWrapper);
         if (records.isEmpty()) {
             return List.of();
         }
+
         List<IssueDemandVO> result = BeanUtil.copyToList(records, IssueDemandVO.class);
         result.forEach(item -> {
             String devCostTime = this.computedDevCostTime(item);
             Integer acceptanceIsOverdue = this.computedAcceptanceIsOverdue(item);
             Integer devIsOverdue = this.computedDevIsOverdue(item);
+
             item.setDevCostTime(devCostTime);
             item.setAcceptanceIsOverdue(acceptanceIsOverdue);
             item.setDevIsOverdue(devIsOverdue);
         });
+
         return result;
     }
 

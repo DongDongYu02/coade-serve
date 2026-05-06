@@ -8,4 +8,6 @@ public interface ApiConstants {
     String INITIATE_EKP_REVIEW = "/api/km-review/kmReviewRestService/addReview";
 
     String EKP_DOWNLOAD_FILE = "/api/sys-attachment/sysAttachmentRestService/getDonwloadUrl";
+
+    String EKP_REVIEW_INSTANCE = "/api/km-review/instance/get";
 }

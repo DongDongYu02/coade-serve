@@ -2,6 +2,7 @@ package cn.dong.coade.modules.cmt.service;
 
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.CmtLoginUser;
+import cn.dong.coade.modules.cmt.domain.bo.EkpApprovalCurrentNodeBO;
 import cn.dong.coade.modules.cmt.domain.bo.EkpAttachmentBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.CmtDepartment;
@@ -364,5 +365,22 @@ public class CmtEkpService {
 
     public List<CmtUser> getNoMatchedWeComUsers() {
         return cmtEkpMapper.selectNoMatchedWeComUsers();
+    }
+
+    /**
+     * 获取流程当前审批节点
+     */
+    public EkpApprovalCurrentNodeBO getCurrentApprovalNode(String ekpReviewId) {
+        String url = coadeProperties.getEkp().getServerUrl() + ApiConstants.EKP_REVIEW_INSTANCE + "?fdId=" + ekpReviewId;
+        try {
+            String resp = HttpUtil.post(url, Map.of());
+            JSONObject respJson = JSONUtil.parseObj(resp);
+            return new EkpApprovalCurrentNodeBO()
+                    .setNodeName(respJson.getStr("wfNode"))
+                    .setHandler(respJson.getJSONArray("wfHandler").getJSONObject(0).getStr("fdName"));
+        } catch (Exception e) {
+            log.error("获取EKP审批节点失败:{}", e.getMessage());
+            return null;
+        }
     }
 }

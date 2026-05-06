@@ -280,5 +280,40 @@ public class CmtAttendController {
         return Result.success(records);
     }
 
+    @GetMapping("/leave-request/{leaveRequestId}")
+    @Operation(summary = "请假申请详情")
+    public Result<AttendLeaveRequestDetailVO> getLeaveRequestDetail(@PathVariable String leaveRequestId) {
+        AttendLeaveRequestDetailVO detail = attendService.getLeaveRequestDetail(leaveRequestId);
+        return Result.success(detail);
+    }
+
+    @GetMapping("/outgoing-request/{outgoingRequestId}")
+    @Operation(summary = "外出申请详情")
+    public Result<AttendOutgoingRequestDetailVO> getOutgoingRequestDetail(@PathVariable String outgoingRequestId) {
+        AttendOutgoingRequestDetailVO detail = attendService.getOutgoingRequestDetail(outgoingRequestId);
+        return Result.success(detail);
+    }
+
+    @GetMapping("/biz-trip-request/{bizTripRequestId}")
+    @Operation(summary = "出差申请详情")
+    public Result<AttendBizTripRequestDetailVO> getBizTripRequestDetail(@PathVariable String bizTripRequestId) {
+        AttendBizTripRequestDetailVO detail = attendService.getBizTripRequestDetail(bizTripRequestId);
+        return Result.success(detail);
+    }
+
+    @GetMapping("/overtime-request/{overtimeRequestId}")
+    @Operation(summary = "加班申请详情")
+    public Result<AttendOvertimeRequestDetailVO> getOvertimeRequestDetail(@PathVariable String overtimeRequestId) {
+        AttendOvertimeRequestDetailVO detail = attendService.getOvertimeRequestDetail(overtimeRequestId);
+        return Result.success(detail);
+    }
+
+    @GetMapping("/reissue-request")
+    @Operation(summary = "补卡申请详情")
+    public Result<AttendReissueDetailVO> getReissueRequestDetail(@RequestParam("ruleCheckinTime") String ruleCheckinTime) {
+        AttendReissueDetailVO detail = attendService.getReissueRequestDetail(ruleCheckinTime);
+        return Result.success(detail);
+    }
+
 
 }

@@ -191,4 +191,28 @@ public interface ICmtAttendService {
      */
     List<FileExportVO> getAttendDataExportList();
 
+    /**
+     * 获取请假详情
+     */
+    AttendLeaveRequestDetailVO getLeaveRequestDetail(String leaveRequestId);
+
+    /**
+     * 获取外出申请详情
+     */
+    AttendOutgoingRequestDetailVO getOutgoingRequestDetail(String outgoingRequestId);
+
+    /**
+     * 获取出差申请详情
+     */
+    AttendBizTripRequestDetailVO getBizTripRequestDetail(String bizTripRequestId);
+
+    /**
+     * 加班申请详情
+     */
+    AttendOvertimeRequestDetailVO getOvertimeRequestDetail(String overtimeRequestId);
+
+    /**
+     * 补卡申请详情
+     */
+    AttendReissueDetailVO getReissueRequestDetail(String reissueTime);
 }

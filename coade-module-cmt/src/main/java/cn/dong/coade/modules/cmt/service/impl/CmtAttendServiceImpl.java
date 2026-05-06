@@ -1,10 +1,7 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
 import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
-import cn.dong.coade.modules.cmt.domain.bo.AttendDurationBO;
-import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
-import cn.dong.coade.modules.cmt.domain.bo.CmtLoginUser;
-import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
+import cn.dong.coade.modules.cmt.domain.bo.*;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.*;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
@@ -1596,6 +1593,85 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         );
     }
 
+    @Override
+    public AttendLeaveRequestDetailVO getLeaveRequestDetail(String leaveRequestId) {
+        CmtLeaveRequest leaveRequest = leaveRequestService.getById(leaveRequestId);
+        if (Objects.isNull(leaveRequest)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        AttendLeaveRequestDetailVO detail = BeanUtil.copyProperties(leaveRequest, AttendLeaveRequestDetailVO.class);
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING.equals(leaveRequest.getStatus())) {
+            // 获取当前EKP审批节点
+            EkpApprovalCurrentNodeBO currentNode = cmtEkpService.getCurrentApprovalNode(leaveRequest.getEkpReviewId());
+            detail.setCurrentNode(currentNode);
+        }
+        return detail;
+    }
+
+    @Override
+    public AttendOutgoingRequestDetailVO getOutgoingRequestDetail(String outgoingRequestId) {
+        CmtOutgoingRequest request = outgoingRequestService.getById(outgoingRequestId);
+        if (Objects.isNull(request)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        AttendOutgoingRequestDetailVO detail = BeanUtil.copyProperties(request, AttendOutgoingRequestDetailVO.class);
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING.equals(request.getStatus())) {
+            // 获取当前EKP审批节点
+            EkpApprovalCurrentNodeBO currentNode = cmtEkpService.getCurrentApprovalNode(request.getEkpReviewId());
+            detail.setCurrentNode(currentNode);
+        }
+        return detail;
+    }
+
+    @Override
+    public AttendBizTripRequestDetailVO getBizTripRequestDetail(String bizTripRequestId) {
+        CmtBizTripRequest request = bizTripRequestService.getById(bizTripRequestId);
+        if (Objects.isNull(request)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        AttendBizTripRequestDetailVO detail = BeanUtil.copyProperties(request, AttendBizTripRequestDetailVO.class);
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING.equals(request.getStatus())) {
+            // 获取当前EKP审批节点
+            EkpApprovalCurrentNodeBO currentNode = cmtEkpService.getCurrentApprovalNode(request.getEkpReviewId());
+            detail.setCurrentNode(currentNode);
+        }
+        return detail;
+    }
+
+    @Override
+    public AttendOvertimeRequestDetailVO getOvertimeRequestDetail(String overtimeRequestId) {
+        CmtOvertimeRequest request = overtimeRequestService.getById(overtimeRequestId);
+        if (Objects.isNull(request)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        AttendOvertimeRequestDetailVO detail = BeanUtil.copyProperties(request, AttendOvertimeRequestDetailVO.class);
+        if (CmtLocalConstants.ATTEND_REQUEST_STATUS.PENDING.equals(request.getStatus())) {
+            // 获取当前EKP审批节点
+            EkpApprovalCurrentNodeBO currentNode = cmtEkpService.getCurrentApprovalNode(request.getEkpReviewId());
+            detail.setCurrentNode(currentNode);
+        }
+        return detail;
+    }
+
+    @Override
+    public AttendReissueDetailVO getReissueRequestDetail(String reissueTime) {
+        CmtAttendReissue reissue = attendReissueService.lambdaQuery()
+                .eq(CmtAttendReissue::getRuleCheckinTime, reissueTime)
+                .one();
+        if (Objects.isNull(reissue)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        AttendReissueDetailVO detail = BeanUtil.copyProperties(reissue, AttendReissueDetailVO.class);
+        Integer usedReissueFrequency = this.getUsedReissueFrequency(reissue.getCmtUserId(), reissue.getRuleCheckinTime().getYear(), reissue.getCheckinTime().getMonthValue());
+        detail.setUsedReissueFrequency(3 - usedReissueFrequency + " / 3");
+        if (GlobalConstants.INT_NO.equals(reissue.getIsApproved())) {
+            // 获取当前EKP审批节点
+            EkpApprovalCurrentNodeBO currentNode = cmtEkpService.getCurrentApprovalNode(reissue.getEkpReviewId());
+            detail.setCurrentNode(currentNode);
+        }
+        return detail;
+    }
+
     private AttendDurationBO calculateDays(LocalDate beginTime, LocalDate endTime) {
         AttendDurationBO durationBO = new AttendDurationBO();
         if (beginTime == null || endTime == null || beginTime.isAfter(endTime)) {
@@ -2155,7 +2231,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
     }
 
     private LocalDateTime resolveWeComPreviousOffDutyDeadline(LocalDateTime previousOffDutyTime,
-                                                             LocalDateTime currentOnDutyTime) {
+                                                              LocalDateTime currentOnDutyTime) {
         long halfBreakSeconds = Duration.between(previousOffDutyTime, currentOnDutyTime).getSeconds() / 2;
         return previousOffDutyTime.plusSeconds(halfBreakSeconds);
     }

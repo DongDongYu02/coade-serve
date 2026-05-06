@@ -1,7 +1,5 @@
 package cn.dong.nexus;
 
-import cn.dong.coade.modules.cmt.service.ICmtAttendRuleService;
-import cn.hutool.extra.spring.SpringUtil;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import org.mybatis.spring.annotation.MapperScan;
@@ -12,7 +10,6 @@ import org.springframework.core.env.Environment;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
 import java.net.InetAddress;
-import java.time.LocalDate;
 
 @Slf4j
 @SpringBootApplication(scanBasePackages = {"cn.dong.nexus", "cn.dong.coade"})
@@ -39,7 +36,19 @@ public class NexusApplication {
                 env.getProperty("server.port"),
                 env.getProperty("server.servlet.context-path") == null ? "" : env.getProperty("server.servlet.context-path"));
 
-        SpringUtil.getBean(ICmtAttendRuleService.class).saveAllUserAttendRulesByDate(LocalDate.of(2026,4,30));
+//        String weComId = "KD00720";
+//        LocalDateTime localDateTime = LocalDateTime.of(2026, 4, 29, 12, 30);
+//        AttendReissueApplyPassDTO attendReissueApplyPassDTO = new AttendReissueApplyPassDTO();
+//        attendReissueApplyPassDTO.setEkpReviewId("19dc2f736e8e3b154bad7c344ceb680e");
+//        attendReissueApplyPassDTO.setIsApproved(1);
+//        SpringUtil.getBean(ICmtAttendService.class).doReissueAttend(attendReissueApplyPassDTO);
+//        WeComApiUtil.addUserAttend("KD00720", LocalDateTime.of(2026, 4, 24, 12, 30));
+//        for (int i = 1; i < 31; i++) {
+//            SpringUtil.getBean(ICmtAttendRuleService.class).saveAllUserAttendRulesByDate(LocalDate.of(2026, 4, i));
+//
+//        }
+//        EkpApprovalCurrentNodeBO currentApprovalNode = SpringUtil.getBean(CmtEkpService.class).getCurrentApprovalNode("19dfa9a1ed89c413e97ab294d59a91df");
+
     }
 
 }

@@ -120,5 +120,11 @@ public class CmtIssueDemandController {
         return Result.success(result);
     }
 
+    @GetMapping("/status/count")
+    @Operation(summary = "状态数量统计")
+    public Result<?> getStatusCount() {
+        List<SelectionVO<String, String>> result = issueDemandService.getPrincipalSelection();
+        return Result.success(result);
+    }
 
 }

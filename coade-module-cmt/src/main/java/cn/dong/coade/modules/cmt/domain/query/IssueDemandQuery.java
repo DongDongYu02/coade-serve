@@ -44,6 +44,9 @@ public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
     @Schema(description = "是否逾期")
     private Integer isOverdue;
 
+    @Schema(description = "只看自己的")
+    private Integer onlyProposer;
+
 
     @Override
     public QueryWrapper<CmtIssueDemand> toQueryWrapper() {
