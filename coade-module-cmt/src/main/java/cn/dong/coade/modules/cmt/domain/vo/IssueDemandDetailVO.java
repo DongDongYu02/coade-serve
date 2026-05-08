@@ -94,4 +94,9 @@ public class IssueDemandDetailVO {
     @Schema(description = "总耗时")
     private String totalCostTime;
 
+    @Schema(description = "编号")
+    private String serialNo;
+
+    @Schema(description = "是否紧急")
+    private Integer isUrgent;
 }

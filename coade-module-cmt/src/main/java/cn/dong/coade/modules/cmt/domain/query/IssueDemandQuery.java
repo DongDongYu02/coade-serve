@@ -30,8 +30,8 @@ public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
     private Integer systemType;
 
     @Schema(description = "状态")
-    @Query(SqlKeyword.EQ)
-    private Integer status;
+    @Query(SqlKeyword.IN)
+    private String status;
 
     @Schema(description = "部门")
     @Query(SqlKeyword.LIKE)
@@ -46,6 +46,10 @@ public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
 
     @Schema(description = "只看自己的")
     private Integer onlyProposer;
+
+    @Schema(description = "是否紧急")
+    @Query(SqlKeyword.EQ)
+    private Integer isUrgent;
 
 
     @Override

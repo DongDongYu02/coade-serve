@@ -163,6 +163,8 @@ public interface GlobalConstants {
         String CMT_PERMISSION = "cmt_permission";
         String SYS_DATA_DICT_ITEM = "sys_data_dict_item";
 
+        String CMT_CLEANING_AREA = "cmt_cleaning_area";
+        String CMT_CLEANING_RECORD = "cmt_cleaning_record";
     }
 
     interface FileExportStatus {

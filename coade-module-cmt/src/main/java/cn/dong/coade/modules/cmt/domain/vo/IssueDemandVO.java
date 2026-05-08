@@ -85,4 +85,13 @@ public class IssueDemandVO {
     @Schema(description = "验收是否逾期")
     private Integer acceptanceIsOverdue;
 
+    @Schema(description = "总耗时")
+    private String totalCostTime;
+
+    @Schema(description = "编号")
+    private String serialNo;
+
+    @Schema(description = "是否紧急")
+    private Integer isUrgent;
+
 }

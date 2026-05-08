@@ -7,11 +7,13 @@ import cn.dong.coade.modules.cmt.domain.entity.CmtIssueDemand;
 import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
 import cn.dong.coade.modules.cmt.domain.query.IssueDemandQuery;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandDetailVO;
+import cn.dong.coade.modules.cmt.domain.vo.IssueDemandStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandVO;
 import cn.dong.coade.modules.cmt.mapper.CmtIssueDemandMapper;
 import cn.dong.coade.modules.cmt.service.ICmtIssueDemandService;
 import cn.dong.coade.modules.cmt.service.ICmtUserService;
 import cn.dong.coade.modules.cmt.service.IWeComService;
+import cn.dong.coade.modules.cmt.support.DemandNoGenerator;
 import cn.dong.nexus.common.api.AttachmentCommonApi;
 import cn.dong.nexus.common.constants.AttachmentOwnerType;
 import cn.dong.nexus.common.constants.GlobalConstants;
@@ -52,12 +54,14 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
     private final ICmtUserService userService;
     private final IAuthContext authContext;
     private final IWeComService weComService;
+    private final DemandNoGenerator demandNoGenerator;
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-
     public void create(IssueDemandDTO dto) {
         CmtIssueDemand entity = dto.toEntity();
+        String serialNo = demandNoGenerator.generateXqNo();
+        entity.setSerialNo(serialNo);
         this.save(entity);
         attachmentService.saveAttachmentsOwner(dto.getAttachmentIds(), AttachmentOwnerType.CMT_ISSUE_DEMAND, entity.getId());
     }
@@ -110,10 +114,11 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
             String devCostTime = this.computedDevCostTime(item);
             Integer acceptanceIsOverdue = this.computedAcceptanceIsOverdue(item);
             Integer devIsOverdue = this.computedDevIsOverdue(item);
-
+            String totalCostTime = this.computedTotalCostTime(item);
             item.setDevCostTime(devCostTime);
             item.setAcceptanceIsOverdue(acceptanceIsOverdue);
             item.setDevIsOverdue(devIsOverdue);
+            item.setTotalCostTime(totalCostTime);
         });
 
         return result;
@@ -312,7 +317,7 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
             throw new BizException(ApiMessage.NOT_FOUND);
         }
         this.lambdaUpdate().eq(CmtIssueDemand::getId, issueDemand.getId())
-                .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.REJECTED)
+                .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED)
                 .set(CmtIssueDemand::getRejectReason, dto.getReason())
                 .update();
     }
@@ -404,5 +409,37 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
                 .update();
     }
 
+    @Override
+    public IssueDemandStatusCountVO getStatusCount(Integer onlySelf) {
+        String loginUserId = authContext.getLoginUserId();
+        List<CmtIssueDemand> issueDemands = this.lambdaQuery().select(CmtIssueDemand::getId, CmtIssueDemand::getStatus)
+                .gt(CmtIssueDemand::getCreateTime, LocalDateTime.now().minusMonths(3))
+                .and(Objects.equals(onlySelf, GlobalConstants.INT_YES), wrapper ->
+                        wrapper.eq(CmtIssueDemand::getCreateBy, loginUserId)
+                                .or()
+                                .eq(CmtIssueDemand::getPrincipalUserId, loginUserId))
+                .list();
+        if (issueDemands.isEmpty()) {
+            return new IssueDemandStatusCountVO().empty();
+        }
+        // 总数
+        long total = issueDemands.size();
+        // 处理中= 待处理+评估中+开发中+待验收
+        long processing = issueDemands.stream().filter(item ->
+                CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING.equals(item.getStatus())
+                        || CmtLocalConstants.ISSUE_DEMAND_STATUS.ASSESSING.equals(item.getStatus())
+                        || CmtLocalConstants.ISSUE_DEMAND_STATUS.IN_PROGRESS.equals(item.getStatus())
+                        || CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT.equals(item.getStatus())
+        ).count();
+        // 已完成
+        long finished = issueDemands.stream().filter(item ->
+                CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(item.getStatus())
+        ).count();
+        // 已作废
+        long voided = issueDemands.stream().filter(item ->
+                CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(item.getStatus())
+        ).count();
+        return new IssueDemandStatusCountVO().setTotal(total).setProcessing(processing).setFinished(finished).setVoided(voided);
+    }
 
 }

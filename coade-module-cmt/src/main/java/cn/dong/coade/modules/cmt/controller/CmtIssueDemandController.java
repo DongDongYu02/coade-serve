@@ -3,6 +3,7 @@ package cn.dong.coade.modules.cmt.controller;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.query.IssueDemandQuery;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandDetailVO;
+import cn.dong.coade.modules.cmt.domain.vo.IssueDemandStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandVO;
 import cn.dong.coade.modules.cmt.service.ICmtIssueDemandService;
 import cn.dong.nexus.core.api.Result;
@@ -122,8 +123,8 @@ public class CmtIssueDemandController {
 
     @GetMapping("/status/count")
     @Operation(summary = "状态数量统计")
-    public Result<?> getStatusCount() {
-        List<SelectionVO<String, String>> result = issueDemandService.getPrincipalSelection();
+    public Result<IssueDemandStatusCountVO> getStatusCount(@RequestParam("onlySelf") Integer onlySelf) {
+        IssueDemandStatusCountVO result = issueDemandService.getStatusCount(onlySelf);
         return Result.success(result);
     }
 

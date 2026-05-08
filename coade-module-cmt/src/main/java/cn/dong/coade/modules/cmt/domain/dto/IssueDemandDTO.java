@@ -56,4 +56,7 @@ public class IssueDemandDTO extends BaseDTO<CmtIssueDemand> {
     @NotBlank
     private String proposeUserName;
 
+    @Schema(description = "是否紧急")
+    private Integer isUrgent;
+
 }

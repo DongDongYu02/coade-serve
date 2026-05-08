@@ -13,6 +13,8 @@ public class CmtIssueDemand {
 
     private String id;
 
+    private String serialNo;
+
     /**
      * 标题
      */
@@ -57,7 +59,7 @@ public class CmtIssueDemand {
     /**
      * 状态
      */
-    private String status;
+    private Integer status;
 
     /**
      * 驳回原因
@@ -133,6 +135,11 @@ public class CmtIssueDemand {
      */
     @TableField(fill = FieldFill.INSERT)
     private String creator;
+
+    /**
+     * 是否紧急
+     */
+    private Integer isUrgent;
 
 
 }

@@ -4,6 +4,7 @@ import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.CmtIssueDemand;
 import cn.dong.coade.modules.cmt.domain.query.IssueDemandQuery;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandDetailVO;
+import cn.dong.coade.modules.cmt.domain.vo.IssueDemandStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandVO;
 import cn.dong.nexus.core.base.SelectionVO;
 import com.baomidou.mybatisplus.core.metadata.IPage;
@@ -64,4 +65,11 @@ public interface ICmtIssueDemandService extends IService<CmtIssueDemand> {
      * 退回整改
      */
     void acceptanceReturn(IssueDemandAcceptanceReturnDTO dto);
+
+    /**
+     * 查询各个状态数量统计
+     */
+    IssueDemandStatusCountVO getStatusCount(Integer onlySelf);
+
 }
+

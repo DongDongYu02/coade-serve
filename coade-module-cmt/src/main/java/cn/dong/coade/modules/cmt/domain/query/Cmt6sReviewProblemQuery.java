@@ -1,4 +1,4 @@
-package cn.dong.coade.modules.cmt.domain.vo;
+package cn.dong.coade.modules.cmt.domain.query;
 
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReview;
 import cn.dong.coade.modules.cmt.domain.entity.Cmt6sReviewProblem;
