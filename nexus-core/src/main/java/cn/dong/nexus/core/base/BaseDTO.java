@@ -8,21 +8,19 @@ import cn.hutool.core.annotation.AnnotationUtil;
 import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.util.ReflectUtil;
 import cn.hutool.core.util.StrUtil;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.toolkit.Db;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
-import lombok.*;
+import lombok.AccessLevel;
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
 import lombok.experimental.Accessors;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-import java.sql.Ref;
-import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 @Data
 @Accessors(chain = true)
@@ -72,7 +70,8 @@ public class BaseDTO<T> {
             if (Objects.isNull(anno)) {
                 continue;
             }
-            String column = StrUtil.toUnderlineCase(field.getName());
+            Object annoColumn = AnnotationUtil.getAnnotationValue(field, BizValidate.Unique.class, "column");
+            String column = StrUtil.isBlank((String) annoColumn) ? StrUtil.toUnderlineCase(field.getName()) : (String) annoColumn;
             Long count = Db.query(thisGeneric).eq(column, fieldValue)
                     .ne(this.isUpdate(), "id", this.id)
                     .count();

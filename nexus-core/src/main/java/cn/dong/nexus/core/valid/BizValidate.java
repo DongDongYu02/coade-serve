@@ -4,11 +4,13 @@ import java.lang.annotation.*;
 
 public interface BizValidate {
 
-    @Target({ ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER })
+    @Target({ElementType.FIELD, ElementType.METHOD, ElementType.PARAMETER})
     @Retention(RetentionPolicy.RUNTIME)
     @Documented
     public @interface Unique {
         String message() default "重复值";
+
+        String column() default "";
     }
 
 

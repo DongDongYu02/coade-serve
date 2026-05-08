@@ -98,6 +98,10 @@ public interface GlobalConstants {
          * EKP SQL Server 数据源
          */
         String EKP_SQLSERVER = "ekp-sqlserver";
+        /**
+         * PMS PostgreSQL 数据源
+         */
+        String PMS_POSTGRESQL = "pms-pgsql";
     }
 
     interface UserIdentity {

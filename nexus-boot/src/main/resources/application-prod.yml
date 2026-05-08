@@ -83,7 +83,7 @@ spring:
       strict: false
       datasource:
         local-mysql:
-          url:  jdbc:mysql://127.0.0.1:3306/coade-serve?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&sslMode=DISABLED&allowPublicKeyRetrieval=true
+          url: jdbc:mysql://127.0.0.1:3306/coade-serve?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&sslMode=DISABLED&allowPublicKeyRetrieval=true
           username: coade-serve
           password: nEfasxAZh3kwDyL7
           driver-class-name: com.mysql.cj.jdbc.Driver
@@ -92,6 +92,11 @@ spring:
           username: sa
           password: win*Coade#..
           driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+        pms-pgsql:
+          url: jdbc:postgresql://192.168.3.249:5432/pms_db_client?currentSchema=public
+          username: pms_admin
+          password: Pms@123456
+          driver-class-name: org.postgresql.Driver
   data:
     redis:
       host: localhost
@@ -113,7 +118,7 @@ mybatis-plus:
   mapper-locations: classpath*:mapper/**/*.xml
   configuration:
     map-underscore-to-camel-case: true
-#    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+  #    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: ASSIGN_ID
@@ -146,7 +151,7 @@ sa-token:
   is-concurrent: true
   is-share: true
   token-style: random-64
-#  is-log: true
+  #  is-log: true
   token-prefix: Bearer
   is-read-cookie: true
   cookie-auto-fill-prefix: true

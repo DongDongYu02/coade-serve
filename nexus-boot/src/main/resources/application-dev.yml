@@ -92,6 +92,11 @@ spring:
           username: sa
           password: win*Coade#..
           driver-class-name: com.microsoft.sqlserver.jdbc.SQLServerDriver
+        pms-pgsql:
+          url: jdbc:postgresql://192.168.3.249:5432/pms_db_client?currentSchema=public
+          username: pms_admin
+          password: Pms@123456
+          driver-class-name: org.postgresql.Driver
   data:
     redis:
       host: localhost
