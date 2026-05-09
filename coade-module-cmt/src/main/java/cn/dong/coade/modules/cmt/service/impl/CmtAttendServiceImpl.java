@@ -122,6 +122,7 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
             userAttend.forEach(item -> item.setStatus("正常"));
             UserLeaveAttendVO leaveAttendVO = new UserLeaveAttendVO();
             if (!GlobalConstants.UserIdentity.SPECIAL.equals(loginUser.getIdentity())) {
+                List<AttendBusinessBO> userRequestByDateRange = overtimeRequestService.getUserRequestByDateRange(loginUser.getId(), todayBegin, todayEnd);
                 List<EkpAttendBusinessBO> overtimeInfo = cmtAttendMapper.selectUserEkpAttendBusiness(ekpId, todayBegin, todayEnd, GlobalConstants.EkpLeaveBizType.OVERTIME);
                 leaveAttendVO.setOvertimeTimes(attendRecordCalculator.formatOvertimeTimes(overtimeInfo));
             }
@@ -1671,6 +1672,8 @@ public class CmtAttendServiceImpl implements ICmtAttendService {
         }
         return detail;
     }
+
+
 
     private AttendDurationBO calculateDays(LocalDate beginTime, LocalDate endTime) {
         AttendDurationBO durationBO = new AttendDurationBO();

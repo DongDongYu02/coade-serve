@@ -141,6 +141,8 @@ public interface GlobalConstants {
         Integer BIZ_TRIP = 4;
     }
 
+
+
     interface CacheKey {
         String EKP_PROVIDE_TOKEN = "ekp_provide_token:";
         String USER_ATTEND_RULE = "user_attend_rule:";

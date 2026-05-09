@@ -101,4 +101,26 @@ public interface CmtLocalConstants {
 
     }
 
+    interface LEAVE_BIZ_TYPE {
+        /**
+         * 假勤类型 请假
+         */
+        Integer LEAVE = 5;
+
+        /**
+         * 假勤类型 加班
+         */
+        Integer OVERTIME = 6;
+
+        /**
+         * 假勤类型 外出
+         */
+        Integer OUTGOING = 7;
+
+        /**
+         * 假勤类型 出差
+         */
+        Integer BIZ_TRIP = 4;
+    }
+
 }
