@@ -2,15 +2,19 @@ package cn.dong.coade.modules.cmt.service.impl;
 
 import cn.dong.coade.modules.cmt.domain.dto.PmsVehicleInfoDTO;
 import cn.dong.coade.modules.cmt.domain.entity.PmsVehicleInfo;
+import cn.dong.coade.modules.cmt.domain.vo.VehicleInfoVO;
 import cn.dong.coade.modules.cmt.mapper.PmsVehicleInfoMapper;
 import cn.dong.coade.modules.cmt.service.IPmsVehicleInfoService;
 import cn.dong.nexus.common.constants.GlobalConstants;
+import cn.dong.nexus.core.exception.BizException;
+import cn.hutool.core.bean.BeanUtil;
 import com.baomidou.dynamic.datasource.annotation.DS;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.Objects;
 
 @Service
 @DS(GlobalConstants.DataSource.PMS_POSTGRESQL)
@@ -23,6 +27,17 @@ public class PmsVehicleInfoServiceImpl extends ServiceImpl<PmsVehicleInfoMapper,
         PmsVehicleInfo entity = dto.toEntity();
         this.setDefaultValues(entity);
         this.save(entity);
+    }
+
+    @Override
+    public VehicleInfoVO getVehicleInfo(String plateNo) {
+        PmsVehicleInfo pmsVehicleInfo = this.lambdaQuery().select(PmsVehicleInfo::getPlateNo, PmsVehicleInfo::getOwnerName, PmsVehicleInfo::getEndTime)
+                .eq(PmsVehicleInfo::getPlateNo, plateNo)
+                .one();
+        if (Objects.isNull(pmsVehicleInfo)) {
+            throw new BizException("未查询到相关车牌信息！");
+        }
+        return BeanUtil.copyProperties(pmsVehicleInfo, VehicleInfoVO.class);
     }
 
     private void setDefaultValues(PmsVehicleInfo pmsVehicleInfo) {

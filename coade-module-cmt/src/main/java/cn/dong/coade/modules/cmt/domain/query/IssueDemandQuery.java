@@ -51,6 +51,14 @@ public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
     @Query(SqlKeyword.EQ)
     private Integer isUrgent;
 
+    @Schema(description = "提出人")
+    @Query(SqlKeyword.EQ)
+    private String proposeUserId;
+
+    @Schema(description = "负责人")
+    @Query(SqlKeyword.EQ)
+    private String principalUserId;
+
 
     @Override
     public QueryWrapper<CmtIssueDemand> toQueryWrapper() {

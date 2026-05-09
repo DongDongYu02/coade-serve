@@ -72,7 +72,19 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         if (page.getRecords().isEmpty()) {
             return PageUtil.emptyPage();
         }
-        return PageUtil.convertPage(page, IssueDemandVO.class);
+        IPage<IssueDemandVO> result = PageUtil.convertPage(page, IssueDemandVO.class);
+        result.getRecords().forEach(item -> {
+            String devCostTime = this.computedDevCostTime(item);
+            Integer acceptanceIsOverdue = this.computedAcceptanceIsOverdue(item);
+            Integer devIsOverdue = this.computedDevIsOverdue(item);
+            String totalCostTime = this.computedTotalCostTime(item);
+            item.setDevCostTime(devCostTime);
+            item.setAcceptanceIsOverdue(acceptanceIsOverdue);
+            item.setDevIsOverdue(devIsOverdue);
+            item.setTotalCostTime(totalCostTime);
+        });
+        return result;
+
     }
 
     @Override
@@ -196,13 +208,13 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         }
 
         // 作废：用作废时间判断
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(status)) {
-            if (Objects.isNull(vo.getVoidedTime())) {
-                return null;
-            }
-
-            return vo.getVoidedTime().isAfter(planFinishTime) ? 1 : 0;
-        }
+//        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(status)) {
+//            if (Objects.isNull(vo.getVoidedTime())) {
+//                return null;
+//            }
+//
+//            return vo.getVoidedTime().isAfter(planFinishTime) ? 1 : 0;
+//        }
 
         // 开发中：用当前时间判断
         if (CmtLocalConstants.ISSUE_DEMAND_STATUS.IN_PROGRESS.equals(status)) {

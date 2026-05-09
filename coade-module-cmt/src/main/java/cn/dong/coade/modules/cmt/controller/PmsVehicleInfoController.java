@@ -1,6 +1,7 @@
 package cn.dong.coade.modules.cmt.controller;
 
 import cn.dong.coade.modules.cmt.domain.dto.PmsVehicleInfoDTO;
+import cn.dong.coade.modules.cmt.domain.vo.VehicleInfoVO;
 import cn.dong.coade.modules.cmt.service.IPmsVehicleInfoService;
 import cn.dong.coade.modules.cmt.support.aspect.annotation.EkpCallbackValid;
 import cn.dong.nexus.core.api.Result;
@@ -9,10 +10,7 @@ import cn.hutool.json.JSONUtil;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/pms/vehicle")
@@ -31,5 +29,12 @@ public class PmsVehicleInfoController {
         }
         pmsVehicleInfoService.addVehicle(dto);
         return Result.success();
+    }
+
+    @GetMapping("/{plateNo}")
+    @Operation(summary = "查询车辆")
+    public Result<VehicleInfoVO> getVehicleInfo(@PathVariable String plateNo) {
+        VehicleInfoVO vo = pmsVehicleInfoService.getVehicleInfo(plateNo);
+        return Result.success(vo);
     }
 }
