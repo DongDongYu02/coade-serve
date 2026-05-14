@@ -59,6 +59,9 @@ public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
     @Query(SqlKeyword.EQ)
     private String principalUserId;
 
+    @Schema(description = "是否验收逾期")
+    private Integer isAcceptanceOverdue;
+
 
     @Override
     public QueryWrapper<CmtIssueDemand> toQueryWrapper() {
@@ -98,6 +101,43 @@ public class IssueDemandQuery extends PageQuery<CmtIssueDemand> {
                                 .or(w -> w
                                         .isNull(CmtIssueDemand::getActualFinishTime)
                                         .ge(CmtIssueDemand::getPlanFinishTime, today))
+                        );
+            }
+        }
+
+        if (Objects.nonNull(isAcceptanceOverdue)) {
+            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime acceptanceDeadlineBaseTime = now.minusHours(24);
+
+            if (GlobalConstants.INT_YES.equals(isAcceptanceOverdue)) {
+                queryWrapper.lambda()
+                        .isNotNull(CmtIssueDemand::getActualFinishTime)
+                        .and(wrapper -> wrapper
+                                // 已完成：验收通过时间 > 实际完成时间 + 24小时
+                                .and(w -> w
+                                        .eq(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED)
+                                        .isNotNull(CmtIssueDemand::getAcceptanceTime)
+                                        .apply("acceptance_time > DATE_ADD(actual_finish_time, INTERVAL 24 HOUR)"))
+                                // 待验收：当前时间 > 实际完成时间 + 24小时
+                                .or(w -> w
+                                        .eq(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT)
+                                        .lt(CmtIssueDemand::getActualFinishTime, acceptanceDeadlineBaseTime))
+                        );
+            }
+
+            if (GlobalConstants.INT_NO.equals(isAcceptanceOverdue)) {
+                queryWrapper.lambda()
+                        .isNotNull(CmtIssueDemand::getActualFinishTime)
+                        .and(wrapper -> wrapper
+                                // 已完成：验收通过时间 <= 实际完成时间 + 24小时
+                                .and(w -> w
+                                        .eq(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED)
+                                        .isNotNull(CmtIssueDemand::getAcceptanceTime)
+                                        .apply("acceptance_time <= DATE_ADD(actual_finish_time, INTERVAL 24 HOUR)"))
+                                // 待验收：当前时间 <= 实际完成时间 + 24小时
+                                .or(w -> w
+                                        .eq(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT)
+                                        .ge(CmtIssueDemand::getActualFinishTime, acceptanceDeadlineBaseTime))
                         );
             }
         }

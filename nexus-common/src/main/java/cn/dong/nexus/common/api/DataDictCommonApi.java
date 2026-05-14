@@ -10,4 +10,7 @@ public interface DataDictCommonApi {
      * 获取字典项
      */
     List<DataDictBO> getDataDictItems(List<String> itemIds);
+
+
+    List<DataDictBO> _getItemsByCode(String code);
 }

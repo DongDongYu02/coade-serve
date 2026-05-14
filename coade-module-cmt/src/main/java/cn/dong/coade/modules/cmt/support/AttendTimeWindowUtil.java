@@ -1,6 +1,6 @@
 package cn.dong.coade.modules.cmt.support;
 
-import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
+import cn.dong.coade.modules.cmt.domain.bo.AttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
@@ -52,7 +52,7 @@ public final class AttendTimeWindowUtil {
     /**
      * 业务记录是否与当天有交集。
      */
-    public static boolean overlapsDay(EkpAttendBusinessBO item, LocalDate day) {
+    public static boolean overlapsDay(AttendBusinessBO item, LocalDate day) {
         if (item == null || item.getStartTime() == null || item.getEndTime() == null || day == null) {
             return false;
         }
@@ -66,7 +66,7 @@ public final class AttendTimeWindowUtil {
     /**
      * 业务记录按天过滤。
      */
-    public static List<EkpAttendBusinessBO> filterBizByDay(List<EkpAttendBusinessBO> source, LocalDate day) {
+    public static List<AttendBusinessBO> filterBizByDay(List<AttendBusinessBO> source, LocalDate day) {
         if (CollUtil.isEmpty(source)) {
             return List.of();
         }
@@ -80,7 +80,7 @@ public final class AttendTimeWindowUtil {
     /**
      * 计算业务记录落在指定日期工作窗口内的分钟数。
      */
-    public static long calculateBizMinutesInWorkRanges(List<EkpAttendBusinessBO> bizInfos,
+    public static long calculateBizMinutesInWorkRanges(List<AttendBusinessBO> bizInfos,
                                                        String[][] workRanges,
                                                        LocalDate day) {
         if (CollUtil.isEmpty(bizInfos) || workRanges == null || workRanges.length == 0 || day == null) {
@@ -89,7 +89,7 @@ public final class AttendTimeWindowUtil {
 
         long totalMinutes = 0L;
 
-        for (EkpAttendBusinessBO biz : bizInfos) {
+        for (AttendBusinessBO biz : bizInfos) {
             if (biz == null || biz.getStartTime() == null || biz.getEndTime() == null) {
                 continue;
             }

@@ -1,6 +1,6 @@
 package cn.dong.coade.modules.cmt.support;
 
-import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
+import cn.dong.coade.modules.cmt.domain.bo.AttendBusinessBO;
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
 
@@ -25,7 +25,7 @@ public final class AttendBizTextFormatter {
      * 请假 2026-04-20 14:00 ~ 2026-04-20 17:30
      */
     public static List<String> formatBizTexts(String bizName,
-                                              List<EkpAttendBusinessBO> records,
+                                              List<AttendBusinessBO> records,
                                               String dateTimePattern) {
         if (CollUtil.isEmpty(records)) {
             return List.of();
@@ -36,7 +36,7 @@ public final class AttendBizTextFormatter {
         return records.stream()
                 .filter(Objects::nonNull)
                 .filter(item -> item.getStartTime() != null && item.getEndTime() != null)
-                .sorted(Comparator.comparing(EkpAttendBusinessBO::getStartTime))
+                .sorted(Comparator.comparing(AttendBusinessBO::getStartTime))
                 .map(item -> StrUtil.format(
                         "{} {} ~ {}",
                         bizName,
@@ -52,7 +52,7 @@ public final class AttendBizTextFormatter {
      * example:
      * 04-20 14:00 - 04-20 17:30
      */
-    public static List<String> formatRangeTexts(List<EkpAttendBusinessBO> records,
+    public static List<String> formatRangeTexts(List<AttendBusinessBO> records,
                                                 String dateTimePattern,
                                                 String separator) {
         if (CollUtil.isEmpty(records)) {
@@ -64,7 +64,7 @@ public final class AttendBizTextFormatter {
         return records.stream()
                 .filter(Objects::nonNull)
                 .filter(item -> item.getStartTime() != null && item.getEndTime() != null)
-                .sorted(Comparator.comparing(EkpAttendBusinessBO::getStartTime))
+                .sorted(Comparator.comparing(AttendBusinessBO::getStartTime))
                 .map(item -> StrUtil.format(
                         "{}{}{}",
                         item.getStartTime().format(formatter),

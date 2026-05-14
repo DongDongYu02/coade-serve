@@ -1,6 +1,7 @@
 package cn.dong.coade.modules.cmt.constants;
 
 import java.util.Map;
+import java.util.Set;
 
 /**
  * CMT 局部常量
@@ -8,6 +9,8 @@ import java.util.Map;
 public interface CmtLocalConstants {
 
     String[] USER_BASIC_PERMISSIONS = {"leave", "outgoing", "biz-trip", "attend"};
+    Integer ATTEND_RULE_IMD_WECOM_ID = 13;
+
 
     /**
      * 6S评审状态
@@ -44,9 +47,6 @@ public interface CmtLocalConstants {
     }
 
 
-    Integer ATTEND_RULE_IMD_WECOM_ID = 13;
-
-
     interface ISSUE_DEMAND_STATUS {
         Integer PENDING = 0;
         /**
@@ -73,6 +73,11 @@ public interface CmtLocalConstants {
          * 待验收
          */
         Integer PENDING_ACCEPT = 6;
+
+
+        Set<Integer> PROCESSING = Set.of(ASSESSING, IN_PROGRESS);
+
+        Set<Integer> DEC_COMPLETED = Set.of(COMPLETED, PENDING_ACCEPT);
     }
 
     interface ISSUE_DEMAND_TYPE {
@@ -121,6 +126,16 @@ public interface CmtLocalConstants {
          * 假勤类型 出差
          */
         Integer BIZ_TRIP = 4;
+    }
+
+    interface ANALYSIS_TIME_RANGE {
+        int THIS_YEAR = 1;
+        int THIS_QUARTER = 2;
+        int THIS_MONTH = 3;
+        int THIS_WEEK = 4;
+        int LAST_QUARTER = 5;
+        int LAST_MONTH = 6;
+        int LAST_WEEK = 7;
     }
 
 }

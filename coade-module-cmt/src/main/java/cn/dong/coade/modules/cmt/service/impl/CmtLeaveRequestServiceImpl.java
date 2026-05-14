@@ -1,5 +1,6 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
+import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.AttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtLeaveRequest;
 import cn.dong.coade.modules.cmt.mapper.CmtLeaveRecordMapper;
@@ -21,6 +22,28 @@ public class CmtLeaveRequestServiceImpl extends ServiceImpl<CmtLeaveRecordMapper
         List<CmtLeaveRequest> requests = this.lambdaQuery().eq(CmtLeaveRequest::getUserId, userId)
                 .ge(CmtLeaveRequest::getEndTime, beginTime)
                 .le(CmtLeaveRequest::getBeginTime, endTime)
+                .eq(CmtLeaveRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
+                .list();
+        if (requests.isEmpty()) {
+            return List.of();
+        }
+        return requests.stream().map(item -> {
+            AttendBusinessBO businessBO = new AttendBusinessBO();
+            businessBO.setUserId(item.getUserId());
+            businessBO.setReason(item.getReason());
+            businessBO.setStartTime(item.getBeginTime());
+            businessBO.setEndTime(item.getEndTime());
+            businessBO.setDuration(item.getDuration());
+            return businessBO;
+        }).toList();
+    }
+
+    @Override
+    public List<AttendBusinessBO> getUsersRequestByDateRange(List<String> userIds, LocalDateTime beginTime, LocalDateTime endTime) {
+        List<CmtLeaveRequest> requests = this.lambdaQuery().in(CmtLeaveRequest::getUserId, userIds)
+                .ge(CmtLeaveRequest::getEndTime, beginTime)
+                .le(CmtLeaveRequest::getBeginTime, endTime)
+                .eq(CmtLeaveRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
                 .list();
         if (requests.isEmpty()) {
             return List.of();

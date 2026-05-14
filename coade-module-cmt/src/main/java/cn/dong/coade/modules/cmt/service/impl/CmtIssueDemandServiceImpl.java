@@ -5,8 +5,10 @@ import cn.dong.coade.modules.cmt.domain.bo.WeComCardMessageBO;
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.CmtIssueDemand;
 import cn.dong.coade.modules.cmt.domain.entity.CmtUser;
+import cn.dong.coade.modules.cmt.domain.query.IssueDemandAnalysisQuery;
 import cn.dong.coade.modules.cmt.domain.query.IssueDemandQuery;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandDetailVO;
+import cn.dong.coade.modules.cmt.domain.vo.IssueDemandProposerTopVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandVO;
 import cn.dong.coade.modules.cmt.mapper.CmtIssueDemandMapper;
@@ -136,121 +138,6 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         return result;
     }
 
-    /**
-     * 计算开发耗时
-     */
-    private String computedDevCostTime(IssueDemandVO vo) {
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(vo.getStatus()) ||
-                CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT.equals(vo.getStatus())) {
-            // 开发耗时
-            if (Objects.nonNull(vo.getDevStartTime()) && Objects.nonNull(vo.getActualFinishTime())) {
-                Duration duration = LocalDateTimeUtil.between(vo.getDevStartTime(), vo.getActualFinishTime());
-                return CommonUtil.formatDuration(duration);
-            }
-        }
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(vo.getStatus())) {
-            // 开发耗时
-            if (Objects.nonNull(vo.getDevStartTime()) && Objects.nonNull(vo.getVoidedTime())) {
-                Duration duration = LocalDateTimeUtil.between(vo.getDevStartTime(), vo.getVoidedTime());
-                return CommonUtil.formatDuration(duration);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 计算总耗时
-     */
-    private String computedTotalCostTime(IssueDemandVO vo) {
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(vo.getStatus())) {
-            if (Objects.nonNull(vo.getCreateTime()) && Objects.nonNull(vo.getActualFinishTime())) {
-                Duration duration = LocalDateTimeUtil.between(vo.getCreateTime(), vo.getActualFinishTime());
-                return CommonUtil.formatDuration(duration);
-            }
-        }
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(vo.getStatus())) {
-            if (Objects.nonNull(vo.getCreateTime()) && Objects.nonNull(vo.getVoidedTime())) {
-                Duration duration = LocalDateTimeUtil.between(vo.getCreateTime(), vo.getVoidedTime());
-                return CommonUtil.formatDuration(duration);
-            }
-        }
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.REJECTED.equals(vo.getStatus())) {
-            if (Objects.nonNull(vo.getCreateTime()) && Objects.nonNull(vo.getRejectTime())) {
-                Duration duration = LocalDateTimeUtil.between(vo.getCreateTime(), vo.getVoidedTime());
-                return CommonUtil.formatDuration(duration);
-            }
-        }
-        return null;
-    }
-
-    /**
-     * 计算开发是否逾期
-     *
-     * @return 1：已逾期；0：未逾期；null：无法判断/不适用
-     */
-    private Integer computedDevIsOverdue(IssueDemandVO vo) {
-        if (Objects.isNull(vo) || Objects.isNull(vo.getExpectedFinishTime())) {
-            return null;
-        }
-
-        Integer status = vo.getStatus();
-        LocalDateTime planFinishTime = vo.getPlanFinishTime();
-
-        // 已完成 / 待验收：用实际完成时间判断
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(status)
-                || CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT.equals(status)) {
-
-            if (Objects.isNull(vo.getActualFinishTime())) {
-                return null;
-            }
-
-            return vo.getActualFinishTime().isAfter(planFinishTime) ? 1 : 0;
-        }
-
-        // 作废：用作废时间判断
-//        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(status)) {
-//            if (Objects.isNull(vo.getVoidedTime())) {
-//                return null;
-//            }
-//
-//            return vo.getVoidedTime().isAfter(planFinishTime) ? 1 : 0;
-//        }
-
-        // 开发中：用当前时间判断
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.IN_PROGRESS.equals(status)) {
-            return LocalDateTime.now().isAfter(planFinishTime) ? 1 : 0;
-        }
-
-        return null;
-    }
-
-    /**
-     * 计算验收是否逾期
-     */
-    private Integer computedAcceptanceIsOverdue(IssueDemandVO vo) {
-        if (Objects.isNull(vo) || Objects.isNull(vo.getActualFinishTime())) {
-            return null;
-        }
-        Integer status = vo.getStatus();
-        // 实际完成时间，也就是进入待验收的时间
-        LocalDateTime actualFinishTime = vo.getActualFinishTime();
-        // 验收截止时间：完成开发后 24 小时内验收
-        LocalDateTime acceptanceDeadlineTime = actualFinishTime.plusHours(24);
-        // 已完成：用验收通过时间判断
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(status)) {
-            LocalDateTime acceptanceTime = vo.getAcceptanceTime();
-            if (Objects.isNull(acceptanceTime)) {
-                return null;
-            }
-            return acceptanceTime.isAfter(acceptanceDeadlineTime) ? 1 : 0;
-        }
-        // 待验收：用当前时间判断
-        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT.equals(status)) {
-            return LocalDateTime.now().isAfter(acceptanceDeadlineTime) ? 1 : 0;
-        }
-        return null;
-    }
-
     @Override
     public IssueDemandDetailVO getDetailById(String id) {
         CmtIssueDemand issueDemand = this.getById(id);
@@ -331,6 +218,7 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         this.lambdaUpdate().eq(CmtIssueDemand::getId, issueDemand.getId())
                 .set(CmtIssueDemand::getStatus, CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED)
                 .set(CmtIssueDemand::getRejectReason, dto.getReason())
+                .set(CmtIssueDemand::getVoidedTime, LocalDateTime.now())
                 .update();
     }
 
@@ -453,5 +341,121 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         ).count();
         return new IssueDemandStatusCountVO().setTotal(total).setProcessing(processing).setFinished(finished).setVoided(voided);
     }
+
+    @Override
+    public List<IssueDemandProposerTopVO> getProposerTop(IssueDemandAnalysisQuery query) {
+        return List.of();
+    }
+
+    /**
+     * 计算开发耗时
+     */
+    private String computedDevCostTime(IssueDemandVO vo) {
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(vo.getStatus()) ||
+                CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT.equals(vo.getStatus())) {
+            // 开发耗时
+            if (Objects.nonNull(vo.getDevStartTime()) && Objects.nonNull(vo.getActualFinishTime())) {
+                Duration duration = LocalDateTimeUtil.between(vo.getDevStartTime(), vo.getActualFinishTime());
+                return CommonUtil.formatDuration(duration);
+            }
+        }
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(vo.getStatus())) {
+            // 开发耗时
+            if (Objects.nonNull(vo.getDevStartTime()) && Objects.nonNull(vo.getVoidedTime())) {
+                Duration duration = LocalDateTimeUtil.between(vo.getDevStartTime(), vo.getVoidedTime());
+                return CommonUtil.formatDuration(duration);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 计算总耗时
+     */
+    private String computedTotalCostTime(IssueDemandVO vo) {
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(vo.getStatus())) {
+            if (Objects.nonNull(vo.getCreateTime()) && Objects.nonNull(vo.getActualFinishTime())) {
+                Duration duration = LocalDateTimeUtil.between(vo.getCreateTime(), vo.getActualFinishTime());
+                return CommonUtil.formatDuration(duration);
+            }
+        }
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(vo.getStatus())) {
+            if (Objects.nonNull(vo.getCreateTime()) && Objects.nonNull(vo.getVoidedTime())) {
+                Duration duration = LocalDateTimeUtil.between(vo.getCreateTime(), vo.getVoidedTime());
+                return CommonUtil.formatDuration(duration);
+            }
+        }
+        return null;
+    }
+
+    /**
+     * 计算开发是否逾期
+     *
+     * @return 1：已逾期；0：未逾期；null：无法判断/不适用
+     */
+    private Integer computedDevIsOverdue(IssueDemandVO vo) {
+        if (Objects.isNull(vo) || Objects.isNull(vo.getExpectedFinishTime())) {
+            return null;
+        }
+
+        Integer status = vo.getStatus();
+        LocalDateTime planFinishTime = vo.getPlanFinishTime();
+
+        // 已完成 / 待验收：用实际完成时间判断
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(status)
+                || CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT.equals(status)) {
+
+            if (Objects.isNull(vo.getActualFinishTime())) {
+                return null;
+            }
+
+            return vo.getActualFinishTime().isAfter(planFinishTime) ? 1 : 0;
+        }
+
+        // 作废：用作废时间判断
+//        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.VOIDED.equals(status)) {
+//            if (Objects.isNull(vo.getVoidedTime())) {
+//                return null;
+//            }
+//
+//            return vo.getVoidedTime().isAfter(planFinishTime) ? 1 : 0;
+//        }
+
+        // 开发中：用当前时间判断
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.IN_PROGRESS.equals(status)) {
+            return LocalDateTime.now().isAfter(planFinishTime) ? 1 : 0;
+        }
+
+        return null;
+    }
+
+    /**
+     * 计算验收是否逾期
+     */
+    private Integer computedAcceptanceIsOverdue(IssueDemandVO vo) {
+        if (Objects.isNull(vo) || Objects.isNull(vo.getActualFinishTime())) {
+            return null;
+        }
+        Integer status = vo.getStatus();
+        // 实际完成时间，也就是进入待验收的时间
+        LocalDateTime actualFinishTime = vo.getActualFinishTime();
+        // 验收截止时间：完成开发后 24 小时内验收
+        LocalDateTime acceptanceDeadlineTime = actualFinishTime.plusHours(24);
+        // 已完成：用验收通过时间判断
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.COMPLETED.equals(status)) {
+            LocalDateTime acceptanceTime = vo.getAcceptanceTime();
+            if (Objects.isNull(acceptanceTime)) {
+                return null;
+            }
+            return acceptanceTime.isAfter(acceptanceDeadlineTime) ? 1 : 0;
+        }
+        // 待验收：用当前时间判断
+        if (CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING_ACCEPT.equals(status)) {
+            return LocalDateTime.now().isAfter(acceptanceDeadlineTime) ? 1 : 0;
+        }
+        return null;
+    }
+
+
 
 }

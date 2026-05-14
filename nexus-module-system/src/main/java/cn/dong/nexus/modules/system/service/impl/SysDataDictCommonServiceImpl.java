@@ -139,4 +139,20 @@ public class SysDataDictCommonServiceImpl extends ServiceImpl<SysDataDictMapper,
         return BeanUtil.copyToList(dataDictItems, DataDictBO.class);
 
     }
+
+    @Override
+    public List<DataDictBO> _getItemsByCode(String code) {
+        SysDataDict dataDict = this.lambdaQuery().eq(SysDataDict::getCode, code).one();
+        if (Objects.isNull(dataDict)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        List<SysDataDictItem> dataDictItems = dataDictItemService.lambdaQuery()
+                .select(SysDataDictItem::getId, SysDataDictItem::getText, SysDataDictItem::getValue)
+                .eq(SysDataDictItem::getDataDictId, dataDict.getId())
+                .list();
+        if (dataDictItems.isEmpty()) {
+            return List.of();
+        }
+        return BeanUtil.copyToList(dataDictItems, DataDictBO.class);
+    }
 }

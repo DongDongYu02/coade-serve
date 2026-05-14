@@ -2,8 +2,10 @@ package cn.dong.coade.modules.cmt.service;
 
 import cn.dong.coade.modules.cmt.domain.dto.*;
 import cn.dong.coade.modules.cmt.domain.entity.CmtIssueDemand;
+import cn.dong.coade.modules.cmt.domain.query.IssueDemandAnalysisQuery;
 import cn.dong.coade.modules.cmt.domain.query.IssueDemandQuery;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandDetailVO;
+import cn.dong.coade.modules.cmt.domain.vo.IssueDemandProposerTopVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandStatusCountVO;
 import cn.dong.coade.modules.cmt.domain.vo.IssueDemandVO;
 import cn.dong.nexus.core.base.SelectionVO;
@@ -71,5 +73,6 @@ public interface ICmtIssueDemandService extends IService<CmtIssueDemand> {
      */
     IssueDemandStatusCountVO getStatusCount(Integer onlySelf);
 
+    List<IssueDemandProposerTopVO> getProposerTop(IssueDemandAnalysisQuery query);
 }
 

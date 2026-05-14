@@ -19,9 +19,9 @@ public class CmtAttendReissueServiceImpl extends ServiceImpl<CmtAttendReissueMap
 
     @Override
     @DS(GlobalConstants.DataSource.LOCAL_MYSQL)
-    public List<CmtAttendReissue> getUserReissueRecordsByTimeRange(String ekpId, LocalDateTime beginTime, LocalDateTime endEnd) {
+    public List<CmtAttendReissue> getUserReissueRecordsByTimeRange(String userId, LocalDateTime beginTime, LocalDateTime endEnd) {
         return this.lambdaQuery()
-                .eq(CmtAttendReissue::getEkpUserId, ekpId)
+                .eq(CmtAttendReissue::getCmtUserId, userId)
                 // 只需要处理中或通过的记录
                 .ne(CmtAttendReissue::getIsApproved, GlobalConstants.AttendReissueApprovalResult.REJECTED)
                 .between(CmtAttendReissue::getRuleCheckinTime, beginTime, endEnd)
@@ -30,12 +30,12 @@ public class CmtAttendReissueServiceImpl extends ServiceImpl<CmtAttendReissueMap
 
     @Override
     @DS(GlobalConstants.DataSource.LOCAL_MYSQL)
-    public List<CmtAttendReissue> getUsersReissueRecordsByTimeRange(List<String> ekpIds, LocalDateTime beginTime, LocalDateTime endTime) {
-        if (CollUtil.isEmpty(ekpIds)) {
+    public List<CmtAttendReissue> getUsersReissueRecordsByTimeRange(List<String> userIds, LocalDateTime beginTime, LocalDateTime endTime) {
+        if (CollUtil.isEmpty(userIds)) {
             return List.of();
         }
         return this.lambdaQuery()
-                .in(CmtAttendReissue::getEkpUserId, ekpIds)
+                .in(CmtAttendReissue::getCmtUserId, userIds)
                 .ne(CmtAttendReissue::getIsApproved, GlobalConstants.AttendReissueApprovalResult.REJECTED)
                 .between(CmtAttendReissue::getRuleCheckinTime, beginTime, endTime)
                 .list();

@@ -1,5 +1,6 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
+import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.AttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtOutgoingRequest;
 import cn.dong.coade.modules.cmt.mapper.CmtOutgoingRequestMapper;
@@ -23,10 +24,30 @@ public class CmtOutgoingRequestServiceImpl extends ServiceImpl<CmtOutgoingReques
         List<CmtOutgoingRequest> requests = this.lambdaQuery().eq(CmtOutgoingRequest::getUserId, userId)
                 .ge(CmtOutgoingRequest::getOutDate, beginDate)
                 .le(CmtOutgoingRequest::getOutDate, endDate)
+                .eq(CmtOutgoingRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
                 .list();
         if (requests.isEmpty()) {
             return List.of();
         }
+        return buildAttendBusinessBO(requests);
+    }
+
+    @Override
+    public List<AttendBusinessBO> getUsersRequestByDateRange(List<String> userIds, LocalDateTime beginTime, LocalDateTime endTime) {
+        LocalDate beginDate = beginTime.toLocalDate();
+        LocalDate endDate = endTime.toLocalDate();
+        List<CmtOutgoingRequest> requests = this.lambdaQuery().in(CmtOutgoingRequest::getUserId, userIds)
+                .ge(CmtOutgoingRequest::getOutDate, beginDate)
+                .le(CmtOutgoingRequest::getOutDate, endDate)
+                .eq(CmtOutgoingRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
+                .list();
+        if (requests.isEmpty()) {
+            return List.of();
+        }
+        return buildAttendBusinessBO(requests);
+    }
+
+    private List<AttendBusinessBO> buildAttendBusinessBO(List<CmtOutgoingRequest> requests) {
         return requests.stream().map(item -> {
             AttendBusinessBO businessBO = new AttendBusinessBO();
             businessBO.setUserId(item.getUserId());

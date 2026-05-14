@@ -42,12 +42,12 @@ public class NexusApplication {
 //        attendReissueApplyPassDTO.setEkpReviewId("19dc2f736e8e3b154bad7c344ceb680e");
 //        attendReissueApplyPassDTO.setIsApproved(1);
 //        SpringUtil.getBean(ICmtAttendService.class).doReissueAttend(attendReissueApplyPassDTO);
-//        WeComApiUtil.addUserAttend("KD00720", LocalDateTime.of(2026, 4, 24, 12, 30));
 //        for (int i = 1; i < 31; i++) {
 //            SpringUtil.getBean(ICmtAttendRuleService.class).saveAllUserAttendRulesByDate(LocalDate.of(2026, 4, i));
 //
 //        }
 //        EkpApprovalCurrentNodeBO currentApprovalNode = SpringUtil.getBean(CmtEkpService.class).getCurrentApprovalNode("19dfa9a1ed89c413e97ab294d59a91df");
+
 
 
 

@@ -99,4 +99,10 @@ public class IssueDemandDetailVO {
 
     @Schema(description = "是否紧急")
     private Integer isUrgent;
+
+    @Schema(description = "驳回理由")
+    private String rejectReason;
+
+    @Schema(description = "作废理由")
+    private String voidedReason;
 }

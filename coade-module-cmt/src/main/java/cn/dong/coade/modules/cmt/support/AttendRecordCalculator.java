@@ -1,8 +1,8 @@
 
 package cn.dong.coade.modules.cmt.support;
 
+import cn.dong.coade.modules.cmt.domain.bo.AttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.bo.AttendRuleBO;
-import cn.dong.coade.modules.cmt.domain.bo.EkpAttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.enums.AttendRuleType;
 import cn.dong.coade.modules.cmt.domain.vo.UserAttendRecordVO;
 import cn.dong.coade.modules.cmt.domain.vo.UserLeaveAttendVO;
@@ -71,9 +71,9 @@ public class AttendRecordCalculator {
     public List<UserAttendRecordVO> calculate(LocalDate attendDate,
                                               List<UserAttendRecordVO> actualRecords,
                                               AttendRuleBO rule,
-                                              List<EkpAttendBusinessBO> leaveInfos,
-                                              List<EkpAttendBusinessBO> outInfos,
-                                              List<EkpAttendBusinessBO> tripInfos) {
+                                              List<AttendBusinessBO> leaveInfos,
+                                              List<AttendBusinessBO> outInfos,
+                                              List<AttendBusinessBO> tripInfos) {
         return calculate(
                 attendDate,
                 actualRecords,
@@ -94,9 +94,9 @@ public class AttendRecordCalculator {
     public List<UserAttendRecordVO> calculate(LocalDate attendDate,
                                               List<UserAttendRecordVO> actualRecords,
                                               AttendRuleBO rule,
-                                              List<EkpAttendBusinessBO> leaveInfos,
-                                              List<EkpAttendBusinessBO> outInfos,
-                                              List<EkpAttendBusinessBO> tripInfos,
+                                              List<AttendBusinessBO> leaveInfos,
+                                              List<AttendBusinessBO> outInfos,
+                                              List<AttendBusinessBO> tripInfos,
                                               Collection<LocalDate> noNeedCheckinDates) {
         return calculate(
                 attendDate,
@@ -119,10 +119,10 @@ public class AttendRecordCalculator {
     public List<UserAttendRecordVO> calculate(LocalDate attendDate,
                                               List<UserAttendRecordVO> actualRecords,
                                               AttendRuleBO rule,
-                                              List<EkpAttendBusinessBO> leaveInfos,
-                                              List<EkpAttendBusinessBO> outInfos,
-                                              List<EkpAttendBusinessBO> tripInfos,
-                                              List<EkpAttendBusinessBO> overtimeInfos,
+                                              List<AttendBusinessBO> leaveInfos,
+                                              List<AttendBusinessBO> outInfos,
+                                              List<AttendBusinessBO> tripInfos,
+                                              List<AttendBusinessBO> overtimeInfos,
                                               Collection<LocalDate> noNeedCheckinDates) {
 
         // 无需打卡日期优先级最高：命中后直接返回“无需打卡”，不再按规则计算异常。
@@ -165,9 +165,9 @@ public class AttendRecordCalculator {
      */
     public List<UserAttendRecordVO> calculateToday(List<UserAttendRecordVO> actualRecords,
                                                    AttendRuleBO rule,
-                                                   List<EkpAttendBusinessBO> leaveInfos,
-                                                   List<EkpAttendBusinessBO> outInfos,
-                                                   List<EkpAttendBusinessBO> tripInfos) {
+                                                   List<AttendBusinessBO> leaveInfos,
+                                                   List<AttendBusinessBO> outInfos,
+                                                   List<AttendBusinessBO> tripInfos) {
         return calculate(LocalDate.now(), actualRecords, rule, leaveInfos, outInfos, tripInfos, Collections.emptySet());
     }
 
@@ -178,9 +178,9 @@ public class AttendRecordCalculator {
      */
     public List<UserAttendRecordVO> calculateToday(List<UserAttendRecordVO> actualRecords,
                                                    AttendRuleBO rule,
-                                                   List<EkpAttendBusinessBO> leaveInfos,
-                                                   List<EkpAttendBusinessBO> outInfos,
-                                                   List<EkpAttendBusinessBO> tripInfos,
+                                                   List<AttendBusinessBO> leaveInfos,
+                                                   List<AttendBusinessBO> outInfos,
+                                                   List<AttendBusinessBO> tripInfos,
                                                    Collection<LocalDate> noNeedCheckinDates) {
         return calculate(LocalDate.now(), actualRecords, rule, leaveInfos, outInfos, tripInfos, noNeedCheckinDates);
     }
@@ -1106,9 +1106,9 @@ public class AttendRecordCalculator {
      * 构造业务时间窗
      * 优先级：请假 > 出差 > 外出
      */
-    private List<BizWindow> buildBizWindows(List<EkpAttendBusinessBO> leaveInfos,
-                                            List<EkpAttendBusinessBO> outInfos,
-                                            List<EkpAttendBusinessBO> tripInfos) {
+    private List<BizWindow> buildBizWindows(List<AttendBusinessBO> leaveInfos,
+                                            List<AttendBusinessBO> outInfos,
+                                            List<AttendBusinessBO> tripInfos) {
         List<BizWindow> list = new ArrayList<>();
 
         // 只有请假允许重建打卡点
@@ -1126,7 +1126,7 @@ public class AttendRecordCalculator {
     }
 
     private void addBizWindows(List<BizWindow> target,
-                               List<EkpAttendBusinessBO> bizList,
+                               List<AttendBusinessBO> bizList,
                                String status,
                                int priority,
                                boolean rebuildPoint) {
@@ -1134,7 +1134,7 @@ public class AttendRecordCalculator {
             return;
         }
 
-        for (EkpAttendBusinessBO item : bizList) {
+        for (AttendBusinessBO item : bizList) {
             if (item == null || item.getStartTime() == null || item.getEndTime() == null) {
                 continue;
             }
@@ -1170,10 +1170,10 @@ public class AttendRecordCalculator {
     /**
      * 构建用户今日请假、外出、出差记录
      */
-    public UserLeaveAttendVO buildUserTodayLeaveInfo(List<EkpAttendBusinessBO> leaveInfos,
-                                                     List<EkpAttendBusinessBO> outInfos,
-                                                     List<EkpAttendBusinessBO> tripInfos,
-                                                     List<EkpAttendBusinessBO> overtimeInfos) {
+    public UserLeaveAttendVO buildUserTodayLeaveInfo(List<AttendBusinessBO> leaveInfos,
+                                                     List<AttendBusinessBO> outInfos,
+                                                     List<AttendBusinessBO> tripInfos,
+                                                     List<AttendBusinessBO> overtimeInfos) {
         UserLeaveAttendVO vo = new UserLeaveAttendVO();
         vo.setLeaveTimes(formatBizTimes(leaveInfos));
         vo.setOutgoingTimes(formatBizTimes(outInfos));
@@ -1185,14 +1185,14 @@ public class AttendRecordCalculator {
     /**
      * 格式化加班时间段（供外部直接调用）
      */
-    public List<String> formatOvertimeTimes(List<EkpAttendBusinessBO> overtimeInfos) {
+    public List<String> formatOvertimeTimes(List<AttendBusinessBO> overtimeInfos) {
         return formatBizTimes(overtimeInfos);
     }
 
     /**
      * 格式化业务时间段。
      */
-    private List<String> formatBizTimes(List<EkpAttendBusinessBO> bizList) {
+    private List<String> formatBizTimes(List<AttendBusinessBO> bizList) {
         return AttendBizTextFormatter.formatRangeTexts(bizList, "MM-dd HH:mm", " - ");
     }
 

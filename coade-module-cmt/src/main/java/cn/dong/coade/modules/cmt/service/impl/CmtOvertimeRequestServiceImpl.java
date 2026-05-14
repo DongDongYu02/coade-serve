@@ -1,5 +1,6 @@
 package cn.dong.coade.modules.cmt.service.impl;
 
+import cn.dong.coade.modules.cmt.constants.CmtLocalConstants;
 import cn.dong.coade.modules.cmt.domain.bo.AttendBusinessBO;
 import cn.dong.coade.modules.cmt.domain.entity.CmtOvertimeRequest;
 import cn.dong.coade.modules.cmt.mapper.CmtOvertimeRequestMapper;
@@ -22,10 +23,28 @@ public class CmtOvertimeRequestServiceImpl
         List<CmtOvertimeRequest> requests = this.lambdaQuery().eq(CmtOvertimeRequest::getUserId, userId)
                 .ge(CmtOvertimeRequest::getOvertimeDate, beginTime)
                 .le(CmtOvertimeRequest::getOvertimeDate, endTime)
+                .eq(CmtOvertimeRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
                 .list();
         if (requests.isEmpty()) {
             return List.of();
         }
+        return buildAttendBusinessBo(requests);
+    }
+
+    @Override
+    public List<AttendBusinessBO> getUsersRequestByDateRange(List<String> userIds, LocalDateTime beginTime, LocalDateTime endTime) {
+        List<CmtOvertimeRequest> requests = this.lambdaQuery().in(CmtOvertimeRequest::getUserId, userIds)
+                .ge(CmtOvertimeRequest::getOvertimeDate, beginTime)
+                .le(CmtOvertimeRequest::getOvertimeDate, endTime)
+                .eq(CmtOvertimeRequest::getStatus, CmtLocalConstants.ATTEND_REQUEST_STATUS.APPROVED)
+                .list();
+        if (requests.isEmpty()) {
+            return List.of();
+        }
+        return buildAttendBusinessBo(requests);
+    }
+
+    private List<AttendBusinessBO> buildAttendBusinessBo(List<CmtOvertimeRequest> requests) {
         return requests.stream().map(item -> {
             AttendBusinessBO businessBO = new AttendBusinessBO();
             businessBO.setUserId(item.getUserId());

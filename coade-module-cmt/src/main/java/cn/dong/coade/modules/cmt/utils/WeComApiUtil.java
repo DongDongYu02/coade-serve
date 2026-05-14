@@ -26,15 +26,16 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 
 @Slf4j
 public class WeComApiUtil {
     private static final String ACCESS_TOKEN_CACHE_KEY = "wecom:accessToken";
-    private static final String ATTEND_RULE_CACHE_KEY_PREFIX = "wecom:attend_rule";
     private static final String REISSUE_NOTES = "已补卡";
     private static final String CORP_ID = SpringUtil.getProperty("coade.cmt.we-com-corp-id");
     private static final String SECRET = SpringUtil.getProperty("coade.cmt.we-com-secret");
+    private static final ReentrantLock LOCK = new ReentrantLock();
 
 
     private static String getAccessToken() {
@@ -223,7 +224,7 @@ public class WeComApiUtil {
             }
         }
         Set<String> weComIdSet = result.stream().map(AttendRuleBO::getWeComId).collect(Collectors.toSet());
-        weComIds.forEach(item ->{
+        weComIds.forEach(item -> {
             if (!weComIdSet.contains(item)) {
                 AttendRuleBO bo = new AttendRuleBO(new String[][]{}, new int[]{}, AttendRuleType.EMPTY, item);
                 result.add(bo);
@@ -318,44 +319,50 @@ public class WeComApiUtil {
      * 获取员工打卡记录
      */
     public static List<UserAttendRecordVO> getCheckinRecords(List<String> weComIds, LocalDateTime timeBegin, LocalDateTime timeEnd) {
-        if (CollUtil.isEmpty(weComIds)) {
-            return List.of();
+        LOCK.lock();
+        try {
+            if (CollUtil.isEmpty(weComIds)) {
+                return List.of();
+            }
+            List<String> deviceSns = SpringUtil.getBean(CoadeProperties.class).getAttendDeviceSn();
+            String accessToken = getAccessToken();
+            long startTime = LocalDateTimeUtil.toEpochMilli(timeBegin) / 1000;
+            long endTime = LocalDateTimeUtil.toEpochMilli(timeEnd) / 1000;
+            String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/hardware/get_hardware_checkin_data?access_token={}", accessToken);
+            List<List<String>> weComIdsSplit = CollUtil.split(weComIds, 99);
+            List<UserAttendRecordVO> result = new ArrayList<>();
+            weComIdsSplit.forEach(subWeComIds -> {
+                JSONObject body = new JSONObject();
+                body.set("filter_type", 2)
+                        .set("starttime", startTime)
+                        .set("endtime", endTime)
+                        .set("useridlist", subWeComIds);
+                String resp = HttpUtil.post(url, JSONUtil.toJsonStr(body));
+                JSONObject respJson = JSONUtil.parseObj(resp);
+//                log.info("body:{},resp:{}", JSONUtil.toJsonStr(body), resp);
+                List<UserAttendRecordVO> list = respJson.getJSONArray("checkindata").stream().filter(item -> {
+                    JSONObject checkintime = (JSONObject) item;
+                    String deviceSn = checkintime.getStr("device_sn");
+                    return deviceSns.contains(deviceSn);
+                }).map(item -> {
+                    JSONObject data = (JSONObject) item;
+                    String weComId = data.getStr("userid");
+                    String checkinTime = LocalDateTimeUtil.format(LocalDateTimeUtil.of(data.getLong("checkin_time") * 1000), GlobalConstants.DatePattern.Y_M_D_H_M);
+                    String location = data.getStr("device_name");
+                    UserAttendRecordVO v = new UserAttendRecordVO();
+                    v.setWeComId(weComId);
+                    v.setCheckinTime(checkinTime);
+                    v.setLocation(location);
+                    v.setIsReissue(GlobalConstants.INT_NO);
+                    return v;
+                }).toList();
+                result.addAll(list);
+            });
+            return result;
+        } finally {
+            LOCK.unlock();
         }
-        List<String> deviceSns = SpringUtil.getBean(CoadeProperties.class).getAttendDeviceSn();
-        String accessToken = getAccessToken();
-        long startTime = LocalDateTimeUtil.toEpochMilli(timeBegin) / 1000;
-        long endTime = LocalDateTimeUtil.toEpochMilli(timeEnd) / 1000;
-        String url = StrUtil.format("https://qyapi.weixin.qq.com/cgi-bin/hardware/get_hardware_checkin_data?access_token={}", accessToken);
-        List<List<String>> weComIdsSplit = CollUtil.split(weComIds, 99);
-        List<UserAttendRecordVO> result = new ArrayList<>();
-        weComIdsSplit.forEach(subWeComIds -> {
-            JSONObject body = new JSONObject();
-            body.set("filter_type", 2)
-                    .set("starttime", startTime)
-                    .set("endtime", endTime)
-                    .set("useridlist", subWeComIds);
-            String resp = HttpUtil.post(url, JSONUtil.toJsonStr(body));
-            JSONObject respJson = JSONUtil.parseObj(resp);
 
-            List<UserAttendRecordVO> list = respJson.getJSONArray("checkindata").stream().filter(item -> {
-                JSONObject checkintime = (JSONObject) item;
-                String deviceSn = checkintime.getStr("device_sn");
-                return deviceSns.contains(deviceSn);
-            }).map(item -> {
-                JSONObject data = (JSONObject) item;
-                String weComId = data.getStr("userid");
-                String checkinTime = LocalDateTimeUtil.format(LocalDateTimeUtil.of(data.getLong("checkin_time") * 1000), GlobalConstants.DatePattern.Y_M_D_H_M);
-                String location = data.getStr("device_name");
-                UserAttendRecordVO v = new UserAttendRecordVO();
-                v.setWeComId(weComId);
-                v.setCheckinTime(checkinTime);
-                v.setLocation(location);
-                v.setIsReissue(GlobalConstants.INT_NO);
-                return v;
-            }).toList();
-            result.addAll(list);
-        });
-        return result;
     }
 
 

@@ -12,6 +12,15 @@ public interface GlobalConstants {
     Integer INT_YES = INT_ONE;
 
     Integer INT_NO = INT_ZERO;
+    /**
+     * 权限表根节点 ID
+     */
+    String ROOT_ID = "0";
+    TreeNodeConfig TREE_NODE_CONFIG = new TreeNodeConfig().setIdKey("id").setWeightKey("sort");
+
+    interface DATA_DICT_CODE{
+        String GSXT = "GSXT";
+    }
 
     /**
      * 时间格式
@@ -47,13 +56,6 @@ public interface GlobalConstants {
         Integer ENABLED = 1;
         Integer DISABLED = 0;
     }
-
-    /**
-     * 权限表根节点 ID
-     */
-    String ROOT_ID = "0";
-
-    TreeNodeConfig TREE_NODE_CONFIG = new TreeNodeConfig().setIdKey("id").setWeightKey("sort");
 
     interface PERMISSION_TYPE {
         /**
