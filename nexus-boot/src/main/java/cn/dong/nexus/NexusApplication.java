@@ -47,10 +47,7 @@ public class NexusApplication {
 //
 //        }
 //        EkpApprovalCurrentNodeBO currentApprovalNode = SpringUtil.getBean(CmtEkpService.class).getCurrentApprovalNode("19dfa9a1ed89c413e97ab294d59a91df");
-
-
-
-
+//        WeComApiUtil.test("KD00681", LocalDateTime.of(2026,5,12,8,0));
     }
 
 }

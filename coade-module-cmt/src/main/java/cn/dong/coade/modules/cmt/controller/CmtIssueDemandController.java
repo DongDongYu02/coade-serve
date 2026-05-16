@@ -88,7 +88,7 @@ public class CmtIssueDemandController {
 
     @PutMapping("/{id}/completed")
     @Operation(summary = "处理完成")
-    public Result<Void> completed(@RequestBody IssueDemandCompletedDTO dto) {
+    public Result<Void> completed(@RequestBody @Validated IssueDemandCompletedDTO dto) {
         issueDemandService.completed(dto);
         return Result.success();
     }
@@ -126,6 +126,13 @@ public class CmtIssueDemandController {
     public Result<IssueDemandStatusCountVO> getStatusCount(@RequestParam("onlySelf") Integer onlySelf) {
         IssueDemandStatusCountVO result = issueDemandService.getStatusCount(onlySelf);
         return Result.success(result);
+    }
+
+    @PostMapping("/supply-desc")
+    @Operation(summary = "补充描述")
+    public Result<Void> supplyDesc(@RequestBody @Validated IssueDemandSupplyDescDTO dto) {
+        issueDemandService.supplyDesc(dto);
+        return Result.success();
     }
 
 }

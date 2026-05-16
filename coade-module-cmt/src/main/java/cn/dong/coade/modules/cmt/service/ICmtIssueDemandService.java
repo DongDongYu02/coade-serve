@@ -74,5 +74,10 @@ public interface ICmtIssueDemandService extends IService<CmtIssueDemand> {
     IssueDemandStatusCountVO getStatusCount(Integer onlySelf);
 
     List<IssueDemandProposerTopVO> getProposerTop(IssueDemandAnalysisQuery query);
+
+    /**
+     * 补充描述
+     */
+    void supplyDesc(IssueDemandSupplyDescDTO dto);
 }
 

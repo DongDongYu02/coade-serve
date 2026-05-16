@@ -105,4 +105,7 @@ public class IssueDemandDetailVO {
 
     @Schema(description = "作废理由")
     private String voidedReason;
+
+    @Schema(description = "结果反馈附件")
+    private List<AttachmentVO> feedbackAttachments;
 }

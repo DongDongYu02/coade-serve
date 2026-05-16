@@ -31,6 +31,7 @@ import cn.dong.nexus.core.security.context.IAuthContext;
 import cn.dong.nexus.core.security.context.LoginUser;
 import cn.dong.nexus.core.util.PageUtil;
 import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.date.LocalDateTimeUtil;
 import cn.hutool.core.util.StrUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -146,6 +147,7 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         }
         IssueDemandDetailVO detail = BeanUtil.copyProperties(issueDemand, IssueDemandDetailVO.class);
         List<AttachmentBO> attachments = attachmentService.getByOwners(AttachmentOwnerType.CMT_ISSUE_DEMAND, List.of(detail.getId()));
+        List<AttachmentBO> feedbackAttachments = attachmentService.getByOwners(AttachmentOwnerType.CMT_ISSUE_DEMAND_FEEDBACK, List.of(detail.getId()));
         detail.setAttachments(BeanUtil.copyToList(attachments, AttachmentVO.class));
         IssueDemandVO temp = BeanUtil.copyProperties(issueDemand, IssueDemandVO.class);
         String devCostTime = this.computedDevCostTime(temp);
@@ -156,7 +158,7 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         detail.setAcceptanceIsOverdue(acceptanceIsOverdue);
         detail.setDevIsOverdue(devIsOverdue);
         detail.setTotalCostTime(totalCostTime);
-
+        detail.setFeedbackAttachments(BeanUtil.copyToList(feedbackAttachments, AttachmentVO.class));
         return detail;
     }
 
@@ -183,15 +185,31 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         String description = StrUtil.format("""
                         <div class="gray">{}</div>
                         <div class="normal">有一条新的{}指派你为负责人，请查收</div>
+                        <div class="normal">单据编号：{}</div>
                         <div class="highlight">期望完成日期：{}</div>
                         """,
                 LocalDateTime.now().format(GlobalConstants.DateFormat.Y_M_D_H_M),
                 category,
+                issueDemand.getSerialNo(),
                 Objects.nonNull(issueDemand.getExpectedFinishTime()) ? issueDemand.getExpectedFinishTime().format(GlobalConstants.DateFormat.NORMAL_ONLY_DATE) : "-");
         String url = coadeProperties.getCmt().getDomain() + "/issue-hub/" + issueDemand.getId();
         message.setTextcard(new WeComCardMessageBO.Content(title, description, url, "查看详情"));
         message.setAgentid(coadeProperties.getCmt().getWeComAgentId());
         weComService.sendMarkdownMessage(principalUserId, message);
+        message = new WeComCardMessageBO();
+        title = "处理通知";
+        description = StrUtil.format("""
+                        <div class="gray">{}</div>
+                        <div class="normal">你上报的{}将由负责人{}跟进处理</div>
+                        <div class="normal">单据编号：{}</div>
+                        """,
+                LocalDateTime.now().format(GlobalConstants.DateFormat.Y_M_D_H_M),
+                category,
+                principalUserName,
+                issueDemand.getSerialNo());
+        message.setTextcard(new WeComCardMessageBO.Content(title, description, url, "查看详情"));
+        message.setAgentid(coadeProperties.getCmt().getWeComAgentId());
+        weComService.sendMarkdownMessage(issueDemand.getProposeUserId(), message);
     }
 
     @Override
@@ -207,6 +225,24 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
                 .set(CmtIssueDemand::getDevStartTime, LocalDateTime.now())
                 .set(CmtIssueDemand::getPlanFinishTime, dto.getPlanFinishTime())
                 .update();
+
+        WeComCardMessageBO message = new WeComCardMessageBO();
+        String category = CmtLocalConstants.ISSUE_DEMAND_TYPE.DEMAND.equals(issueDemand.getType()) ? "需求开发" : "系统优化";
+        String title = category + "开发通知";
+        String description = StrUtil.format("""
+                        <div class="gray">{}</div>
+                        <div class="normal">你上报的{}已评估完成，进入开发阶段</div>
+                        <div class="normal">单据编号：{}</div>
+                        <div class="normal">计划完成日期：{}</div>
+                        """,
+                LocalDateTime.now().format(GlobalConstants.DateFormat.Y_M_D_H_M),
+                category,
+                issueDemand.getSerialNo(),
+                dto.getPlanFinishTime().format(GlobalConstants.DateFormat.NORMAL_ONLY_DATE));
+        String url = coadeProperties.getCmt().getDomain() + "/issue-hub/" + issueDemand.getId();
+        message.setTextcard(new WeComCardMessageBO.Content(title, description, url, "查看详情"));
+        message.setAgentid(coadeProperties.getCmt().getWeComAgentId());
+        weComService.sendMarkdownMessage(issueDemand.getProposeUserId(), message);
     }
 
     @Override
@@ -220,9 +256,25 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
                 .set(CmtIssueDemand::getRejectReason, dto.getReason())
                 .set(CmtIssueDemand::getVoidedTime, LocalDateTime.now())
                 .update();
+        WeComCardMessageBO message = new WeComCardMessageBO();
+        String category = CmtLocalConstants.ISSUE_DEMAND_TYPE.DEMAND.equals(issueDemand.getType()) ? "需求开发" : "系统优化";
+        String title = category + "驳回通知";
+        String description = StrUtil.format("""
+                        <div class="gray">{}</div>
+                        <div class="normal">你上报的{}被负责人驳回</div>
+                        <div class="normal">单据编号：{}</div>
+                        """,
+                LocalDateTime.now().format(GlobalConstants.DateFormat.Y_M_D_H_M),
+                category,
+                issueDemand.getSerialNo());
+        String url = coadeProperties.getCmt().getDomain() + "/issue-hub/" + issueDemand.getId();
+        message.setTextcard(new WeComCardMessageBO.Content(title, description, url, "查看详情"));
+        message.setAgentid(coadeProperties.getCmt().getWeComAgentId());
+        weComService.sendMarkdownMessage(issueDemand.getProposeUserId(), message);
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void completed(IssueDemandCompletedDTO dto) {
         CmtIssueDemand issueDemand = this.getById(dto.getId());
         if (Objects.isNull(issueDemand)) {
@@ -233,6 +285,10 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
                 .set(CmtIssueDemand::getResultFeedback, dto.getResultFeedback())
                 .set(CmtIssueDemand::getActualFinishTime, LocalDateTime.now())
                 .update();
+        // 保存反馈结果附件
+        if (CollUtil.isNotEmpty(dto.getAttachmentIds())) {
+            attachmentService.saveAttachmentsOwner(dto.getAttachmentIds(), AttachmentOwnerType.CMT_ISSUE_DEMAND_FEEDBACK, issueDemand.getId());
+        }
         // 发送企微通知给提出人验收
         WeComCardMessageBO message = new WeComCardMessageBO();
         String category = CmtLocalConstants.ISSUE_DEMAND_TYPE.DEMAND.equals(issueDemand.getType()) ? "需求开发" : "系统优化";
@@ -240,10 +296,11 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         String description = StrUtil.format("""
                         <div class="gray">{}</div>
                         <div class="normal">你提出的一条{}已完成开发</div>
+                        <div class="normal">编号：{}</div>
                         <div class="highlight">请与24小时内完成验收，否则将视为逾期</div>
                         """,
                 LocalDateTime.now().format(GlobalConstants.DateFormat.Y_M_D_H_M),
-                category);
+                category, issueDemand.getSerialNo());
         String url = coadeProperties.getCmt().getDomain() + "/issue-hub/" + issueDemand.getId();
         message.setTextcard(new WeComCardMessageBO.Content(title, description, url, "查看详情"));
         message.setAgentid(coadeProperties.getCmt().getWeComAgentId());
@@ -345,6 +402,29 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
     @Override
     public List<IssueDemandProposerTopVO> getProposerTop(IssueDemandAnalysisQuery query) {
         return List.of();
+    }
+
+    @Override
+    public void supplyDesc(IssueDemandSupplyDescDTO dto) {
+        CmtIssueDemand issueDemand = this.getById(dto.getId());
+        if (Objects.isNull(issueDemand)) {
+            throw new BizException(ApiMessage.NOT_FOUND);
+        }
+        if (!Objects.equals(issueDemand.getStatus(), CmtLocalConstants.ISSUE_DEMAND_STATUS.PENDING)
+                && !Objects.equals(issueDemand.getStatus(), CmtLocalConstants.ISSUE_DEMAND_STATUS.ASSESSING)
+                && !Objects.equals(issueDemand.getStatus(), CmtLocalConstants.ISSUE_DEMAND_STATUS.IN_PROGRESS)) {
+            throw new BizException("此记录已经无法补充描述！");
+        }
+        String description = StrUtil.format(
+                "{}\n\n补充内容：\n{}",
+                issueDemand.getDescription(),
+                dto.getDescription()
+        );
+        attachmentService.saveAttachmentsOwner(dto.getAttachmentIds(), AttachmentOwnerType.CMT_ISSUE_DEMAND, issueDemand.getId());
+        this.lambdaUpdate().eq(CmtIssueDemand::getId, issueDemand.getId())
+                .set(CmtIssueDemand::getExpectedFinishTime, dto.getExpectedFinishTime())
+                .set(CmtIssueDemand::getDescription, description)
+                .update();
     }
 
     /**
@@ -455,7 +535,6 @@ public class CmtIssueDemandServiceImpl extends ServiceImpl<CmtIssueDemandMapper,
         }
         return null;
     }
-
 
 
 }
